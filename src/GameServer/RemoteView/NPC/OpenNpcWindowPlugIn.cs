@@ -78,6 +78,7 @@ public class OpenNpcWindowPlugIn : IOpenNpcWindowPlugIn
             NpcWindow.GuildMaster => throw new ArgumentException("guild master dialog is opened by another action."),
             NpcWindow.NpcDialog => throw new ArgumentException("The quest dialog is opened by another action"),
             NpcWindow.LegacyQuest => throw new ArgumentException("The legacy quest dialog is opened by another action"),
+            NpcWindow.AuctionHouse => throw new ArgumentException("The auction house dialog is opened by another action"),
             _ => throw new ArgumentException($"Unhandled case {window}."),
         };
     }

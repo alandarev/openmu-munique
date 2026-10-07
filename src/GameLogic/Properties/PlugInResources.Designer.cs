@@ -223,6 +223,42 @@ namespace MUnique.OpenMU.GameLogic.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Closes the auction house broker of a player and sends its closed state when the NPC dialog ends (close request, warp, logout, disconnect) or the player gets a deadly hit..
+        /// </summary>
+        public static string AuctionBrokerClosingPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionBrokerClosingPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Broker Closing.
+        /// </summary>
+        public static string AuctionBrokerClosingPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionBrokerClosingPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The NPC auction house: its configuration are the market rules which the broker announces, and it provides the market behind the broker. Without a market, the broker opens with its rules and answers every request as unavailable..
+        /// </summary>
+        public static string AuctionHouseFeaturePlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionHouseFeaturePlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House.
+        /// </summary>
+        public static string AuctionHouseFeaturePlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionHouseFeaturePlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Handles the chat command &apos;/banacc &lt;acc&gt;&apos;. Bans an account from the game..
         /// </summary>
         public static string BanAccChatCommandPlugIn_Description {

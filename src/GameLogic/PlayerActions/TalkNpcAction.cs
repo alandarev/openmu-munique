@@ -6,6 +6,7 @@ namespace MUnique.OpenMU.GameLogic.PlayerActions;
 
 using MUnique.OpenMU.GameLogic.MiniGames;
 using MUnique.OpenMU.GameLogic.NPC;
+using MUnique.OpenMU.GameLogic.PlayerActions.AuctionHouse;
 using MUnique.OpenMU.GameLogic.PlayerActions.Quests;
 using MUnique.OpenMU.GameLogic.PlugIns;
 using MUnique.OpenMU.GameLogic.Views;
@@ -20,6 +21,8 @@ using MUnique.OpenMU.Interfaces;
 /// </summary>
 public class TalkNpcAction
 {
+    private readonly AuctionHouseAction _auctionHouseAction = new();
+
     /// <summary>
     /// Talks to the specified Monster.
     /// </summary>
@@ -116,6 +119,9 @@ public class TalkNpcAction
                 break;
             case NpcWindow.LegacyQuest:
                 await this.ShowLegacyQuestDialogAsync(player).ConfigureAwait(false);
+                break;
+            case NpcWindow.AuctionHouse:
+                await this._auctionHouseAction.OpenBrokerAsync(player).ConfigureAwait(false);
                 break;
             case NpcWindow.DoorkeeperTitusDuelWatch:
                 await player.InvokeViewPlugInAsync<IOpenNpcWindowPlugIn>(p => p.OpenNpcWindowAsync(npcStats.NpcWindow)).ConfigureAwait(false);

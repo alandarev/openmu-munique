@@ -1308,4 +1308,16 @@
   <data name="RaklionPlugIn_Description" xml:space="preserve">
     <value>The event in the hatchery of raklion: when all spider eggs are destroyed, Selupan appears. After the battle, the hatchery is closed for some time.</value>
   </data>
+  <data name="AuctionHouseFeaturePlugIn_Name" xml:space="preserve">
+    <value>Auction House</value>
+  </data>
+  <data name="AuctionHouseFeaturePlugIn_Description" xml:space="preserve">
+    <value>The NPC auction house: its configuration are the market rules which the broker announces, and it provides the market behind the broker. Without a market, the broker opens with its rules and answers every request as unavailable.</value>
+  </data>
+  <data name="AuctionBrokerClosingPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Broker Closing</value>
+  </data>
+  <data name="AuctionBrokerClosingPlugIn_Description" xml:space="preserve">
+    <value>Closes the auction house broker of a player and sends its closed state when the NPC dialog ends (close request, warp, logout, disconnect) or the player gets a deadly hit.</value>
+  </data>
 </root>

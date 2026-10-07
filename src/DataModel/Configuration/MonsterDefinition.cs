@@ -175,6 +175,11 @@ public enum NpcWindow
     /// The castle siege lever NPC interaction window.
     /// </summary>
     CastleSiegeLeverNpc,
+
+    /// <summary>
+    /// The auction house window, which is opened by the auction house broker instead of the NPC window response.
+    /// </summary>
+    AuctionHouse,
 }
 
 /// <summary>
