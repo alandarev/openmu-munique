@@ -44,6 +44,47 @@ internal sealed class RowLockBarrier : IAsyncDisposable
     }
 
     /// <summary>
+    /// Waits, on a connection of its own, until the given count of sessions of the database wait for a lock.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="count">The count of waiting sessions.</param>
+    /// <returns>The task.</returns>
+    public static async Task WaitForLockWaitersAsync(PostgreSqlTestDatabase database, int count)
+    {
+        await using var connection = new NpgsqlConnection(database.ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false);
+        await using var observer = new RowLockBarrier(connection, transaction, database.DatabaseName);
+        await observer.WaitForWaitersAsync(count).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Terminates, from a connection of its own, the one backend of the database which is idle inside an open
+    /// transaction, as if its connection got lost.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <returns>The task.</returns>
+    public static async Task TerminateIdleInTransactionBackendAsync(PostgreSqlTestDatabase database)
+    {
+        await using var connection = new NpgsqlConnection(database.ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = @db AND state = 'idle in transaction' AND pid <> pg_backend_pid()",
+            connection);
+        command.Parameters.AddWithValue("db", database.DatabaseName);
+        var terminated = new List<bool>();
+        await using (var reader = await command.ExecuteReaderAsync().ConfigureAwait(false))
+        {
+            while (await reader.ReadAsync().ConfigureAwait(false))
+            {
+                terminated.Add(reader.GetBoolean(0));
+            }
+        }
+
+        Assert.That(terminated, Is.EqualTo(new[] { true }), "exactly one backend was idle in a transaction and got terminated");
+    }
+
+    /// <summary>
     /// Waits until the given count of other sessions of the database wait for a lock.
     /// </summary>
     /// <param name="count">The count of waiting sessions.</param>

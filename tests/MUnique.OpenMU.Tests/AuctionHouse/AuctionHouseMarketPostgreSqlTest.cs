@@ -4,6 +4,7 @@
 
 namespace MUnique.OpenMU.Tests.AuctionHouse;
 
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -336,46 +337,71 @@ public class AuctionHouseMarketPostgreSqlTest
     }
 
     /// <summary>
-    /// A purchase racing the expiry of the same listing: exactly one of them takes it, and the database is consistent.
+    /// A purchase and the expiry of the same listing overlap, the purchase first: the purchase holds the row (paused
+    /// right before its commit) while the expiry runs; the expiry skips the row, the purchase completes, and a later
+    /// expiry finds the listing sold.
     /// </summary>
     [Test]
-    public async Task PurchaseRacingExpiryHasOneOutcomeAsync()
+    public async Task PurchaseHoldingRowBeforeExpiryWinsAsync()
     {
-        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._kris, 1)).ConfigureAwait(false);
-        var buyer = await this.CreatePlayerAsync("buyer", 50_000_000).ConfigureAwait(false);
-        var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
-        var expiryMarket = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), new ShiftedTimeProvider(TimeSpan.FromHours(49)));
-        await expiryMarket.EnsureIndexLoadedAsync().ConfigureAwait(false);
+        var (buyer, listingId, expiryMarket) = await this.PrepareRaceAsync().ConfigureAwait(false);
+        var paused = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        ((Persistence.EntityFramework.EntityFrameworkContextBase)buyer.PersistenceContext).CommitFaultInjection = async isCommitted =>
+        {
+            if (!isCommitted)
+            {
+                paused.SetResult();
+                await release.Task.ConfigureAwait(false);
+            }
+        };
 
-        var buying = Task.Run(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false));
-        var expiring = Task.Run(async () => await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false));
+        var buying = Task.Run(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(listingId, 10_000_000)).ConfigureAwait(false));
+        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        var expiredWhileHeld = await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false);
+        release.SetResult();
         var bought = await buying.ConfigureAwait(false);
-        var expired = await expiring.ConfigureAwait(false);
+        var expiredAfter = await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false);
 
-        Assert.That(bought.Result == AuctionHouseResult.Success ^ expired == 1, Is.True, $"bought {bought.Result}, expired {expired}");
-        Assert.That(bought.Result, Is.AnyOf(AuctionHouseResult.Success, AuctionHouseResult.NotFound));
-        await using var data = this._database.CreateDataContext();
-        var listing = await data.Set<EfModel.AuctionListing>().SingleAsync().ConfigureAwait(false);
-        var entries = await data.Set<EfModel.AuctionCollectionEntry>().ToListAsync().ConfigureAwait(false);
-        if (bought.Result == AuctionHouseResult.Success)
-        {
-            Assert.That(listing.State, Is.EqualTo(AuctionListingState.SoldOut));
-            Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(40_000_000));
-            Assert.That(entries.Select(entry => entry.Kind), Is.EqualTo(new[] { AuctionHouseCollectionEntryKind.Proceeds }));
-        }
-        else
-        {
-            Assert.That(listing.State, Is.EqualTo(AuctionListingState.Expired));
-            Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(50_000_000));
-            Assert.That(entries.Select(entry => entry.Kind), Is.EqualTo(new[] { AuctionHouseCollectionEntryKind.Expired }));
-            Assert.That(await data.Set<EfModel.Item>().CountAsync(item => item.ItemStorageId == entries[0].EscrowId).ConfigureAwait(false), Is.EqualTo(1));
-        }
-
-        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+        Assert.That(expiredWhileHeld, Is.Zero, "the expiry overlapped the purchase and skipped its row");
+        Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(expiredAfter, Is.Zero);
+        await this.AssertRaceOutcomeAsync(buyer, sold: true).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Two expiry runs of different markets (processes) at the same time expire every due listing exactly once.
+    /// A purchase and the expiry of the same listing overlap, the expiry first: the expiry holds the row (paused right
+    /// after locking) while the purchase waits for it; the listing expires and the purchase is answered "not found"
+    /// without a charge.
+    /// </summary>
+    [Test]
+    public async Task ExpiryHoldingRowBeforePurchaseWinsAsync()
+    {
+        var (buyer, listingId, expiryMarket) = await this.PrepareRaceAsync().ConfigureAwait(false);
+        var paused = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        expiryMarket.AfterExpiryBatchLocked = async () =>
+        {
+            paused.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+        };
+
+        var expiring = Task.Run(async () => await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false));
+        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        var buying = Task.Run(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(listingId, 10_000_000)).ConfigureAwait(false));
+        await RowLockBarrier.WaitForLockWaitersAsync(this._database, 1).ConfigureAwait(false);
+        release.SetResult();
+        var expired = await expiring.ConfigureAwait(false);
+        var bought = await buying.ConfigureAwait(false);
+
+        Assert.That(expired, Is.EqualTo(1));
+        Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.NotFound));
+        await this.AssertRaceOutcomeAsync(buyer, sold: false).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Two expiry runs of different markets (processes) overlap: the first holds its batch (paused after locking) while
+    /// the second runs; every due listing expires exactly once.
     /// </summary>
     [Test]
     public async Task ConcurrentExpiryRunsExpireEachListingOnceAsync()
@@ -388,22 +414,156 @@ public class AuctionHouseMarketPostgreSqlTest
         }
 
         var later = new ShiftedTimeProvider(TimeSpan.FromHours(49));
-
-        var first = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later);
+        var first = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later) { ExpiryBatchSize = 2 };
         var second = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later);
+        var paused = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        first.AfterExpiryBatchLocked = async () =>
+        {
+            if (paused.TrySetResult())
+            {
+                await release.Task.ConfigureAwait(false);
+            }
+        };
 
-        var counts = await Task.WhenAll(
-            Task.Run(async () => await first.ExpireDueListingsAsync(true).ConfigureAwait(false)),
-            Task.Run(async () => await second.ExpireDueListingsAsync(true).ConfigureAwait(false))).ConfigureAwait(false);
-        var rest = await first.ExpireDueListingsAsync(true).ConfigureAwait(false) + await second.ExpireDueListingsAsync(true).ConfigureAwait(false);
+        var firstRun = Task.Run(async () => await first.ExpireDueListingsAsync(true).ConfigureAwait(false));
+        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        var secondCount = await second.ExpireDueListingsAsync(true).ConfigureAwait(false);
+        release.SetResult();
+        var firstCount = await firstRun.ConfigureAwait(false);
 
-        Assert.That(counts.Sum() + rest, Is.EqualTo(3));
+        Assert.That(secondCount, Is.EqualTo(1), "the second run overlapped the first and skipped its two held listings");
+        Assert.That(firstCount, Is.EqualTo(2));
         await using var data = this._database.CreateDataContext();
         Assert.That(await data.Set<EfModel.AuctionListing>().CountAsync(listing => listing.State == AuctionListingState.Expired).ConfigureAwait(false), Is.EqualTo(3));
         var entries = await data.Set<EfModel.AuctionCollectionEntry>().ToListAsync().ConfigureAwait(false);
         Assert.That(entries, Has.Count.EqualTo(3));
         Assert.That(entries.Sum(entry => entry.Quantity), Is.EqualTo(6));
         Assert.That(entries.Select(entry => entry.OwnerCharacterId).Distinct().Count(), Is.EqualTo(3));
+    }
+
+    /// <summary>
+    /// Due listings which another transaction holds don't hide the due listings behind them: with a batch size of two
+    /// and the two oldest due listings held by a third connection, the run expires the three others.
+    /// </summary>
+    [Test]
+    public async Task HeldOldestBatchDoesntStarveLaterDueListingsAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 5)).ConfigureAwait(false);
+        var ids = new List<Guid>();
+        for (byte i = 0; i < 5; i++)
+        {
+            var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder((byte)(Slot + i), 1, 1_000_000, 48, 0)).ConfigureAwait(false);
+            Assert.That(created.Result, Is.EqualTo(AuctionHouseResult.Success));
+            ids.Add(created.ListingId);
+        }
+
+        var expiryMarket = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), new ShiftedTimeProvider(TimeSpan.FromHours(49))) { ExpiryBatchSize = 2 };
+        await using var barrier = await RowLockBarrier.HoldAsync(this._database, "AuctionListing", ids[0], ids[1]).ConfigureAwait(false);
+
+        var expired = await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false);
+
+        Assert.That(expired, Is.EqualTo(3));
+        await barrier.ReleaseAsync().ConfigureAwait(false);
+        Assert.That(await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false), Is.EqualTo(2));
+    }
+
+    /// <summary>
+    /// A goods purchase which waits for a held listing row past the listing's expiry refuses the expired units, though
+    /// they weren't expired when the purchase started.
+    /// </summary>
+    [Test]
+    public async Task GoodsPurchaseWaitingPastExpiryRefusesExpiredUnitsAsync()
+    {
+        var time = new SettableTimeProvider();
+        var market = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), time);
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 3)).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 100_000_000).ConfigureAwait(false);
+        var created = await market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 3, 1_000_000, 48, 0)).ConfigureAwait(false);
+        time.Advance(TimeSpan.FromHours(48) - TimeSpan.FromSeconds(1));
+
+        await using var barrier = await RowLockBarrier.HoldAsync(this._database, "AuctionListing", created.ListingId).ConfigureAwait(false);
+        var buying = Task.Run(async () => await market.BuyGoodsAsync(buyer, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 2, 2_000_000)).ConfigureAwait(false));
+        await barrier.WaitForWaitersAsync(1).ConfigureAwait(false);
+        time.Advance(TimeSpan.FromSeconds(2));
+        await barrier.ReleaseAsync().ConfigureAwait(false);
+        var bought = await buying.ConfigureAwait(false);
+
+        Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.InsufficientStock));
+        Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(100_000_000));
+        await using var data = this._database.CreateDataContext();
+        Assert.That((await data.Set<EfModel.AuctionListing>().SingleAsync().ConfigureAwait(false)).RemainingQuantity, Is.EqualTo(3));
+    }
+
+    /// <summary>
+    /// The connection of a purchase is lost between its save and its commit (its backend is terminated from a third
+    /// connection): the purchase ends in the unknown-outcome path, the player is quarantined, and the database didn't
+    /// commit anything: the listing is intact and the buyer's Zen unchanged.
+    /// </summary>
+    [Test]
+    public async Task LostConnectionBeforeCommitEndsInUnknownOutcomeAsync()
+    {
+        var (buyer, listingId, _) = await this.PrepareRaceAsync().ConfigureAwait(false);
+        var buyerInventoryId = buyer.SelectedCharacter!.Inventory!.GetId();
+        ((Persistence.EntityFramework.EntityFrameworkContextBase)buyer.PersistenceContext).CommitFaultInjection = async isCommitted =>
+        {
+            if (!isCommitted)
+            {
+                // Only pauses: the purchase is saved inside the transaction, which isn't committed yet.
+                await RowLockBarrier.TerminateIdleInTransactionBackendAsync(this._database).ConfigureAwait(false);
+            }
+        };
+
+        Assert.That(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(listingId, 10_000_000)).ConfigureAwait(false), Throws.InstanceOf<TransactionOutcomeUnknownException>());
+
+        Assert.That(buyer.PersistenceContext.IsQuarantined, Is.True);
+        Assert.That(this._market.Index.Get(listingId)?.RemainingQuantity, Is.EqualTo(1), "the index has the database's state");
+        await this.AssertRaceOutcomeAsync(buyerInventoryId, sold: false).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A save and a transaction which are queued behind a transaction whose commit fails with unknown outcome are
+    /// refused, although they passed the check before the context lock.
+    /// </summary>
+    [Test]
+    public async Task QueuedSaveAndTransactionAreRefusedAfterUnknownOutcomeAsync()
+    {
+        var buyer = await this.CreatePlayerAsync("buyer", 50_000_000).ConfigureAwait(false);
+        var context = (Persistence.EntityFramework.EntityFrameworkContextBase)buyer.PersistenceContext;
+        var paused = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        context.CommitFaultInjection = async isCommitted =>
+        {
+            if (isCommitted)
+            {
+                paused.SetResult();
+                await release.Task.ConfigureAwait(false);
+                throw new TimeoutException("Injected loss of the commit acknowledgement.");
+            }
+        };
+        var wallet = buyer.SelectedCharacter!.Inventory!;
+
+        var failing = Task.Run(async () => await context.RunInTransactionAsync<bool>(_ =>
+        {
+            wallet.Money -= 1_000;
+            return ValueTask.FromResult(true);
+        }).ConfigureAwait(false));
+        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        Assert.That(context.IsQuarantined, Is.False);
+        var queuedSave = Task.Run(async () =>
+        {
+            wallet.Money = 1;
+            return await context.SaveChangesAsync().ConfigureAwait(false);
+        });
+        var queuedTransaction = Task.Run(async () => await context.RunInTransactionAsync<bool>(_ => ValueTask.FromResult(true)).ConfigureAwait(false));
+        await Task.Delay(500).ConfigureAwait(false);
+        Assert.That(queuedSave.IsCompleted || queuedTransaction.IsCompleted, Is.False, "both wait for the context lock");
+        release.SetResult();
+
+        Assert.That(async () => await failing.ConfigureAwait(false), Throws.InstanceOf<TransactionOutcomeUnknownException>());
+        Assert.That(await queuedSave.ConfigureAwait(false), Is.False);
+        Assert.That(async () => await queuedTransaction.ConfigureAwait(false), Throws.InvalidOperationException);
+        Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(50_000_000 - 1_000), "the committed transaction, but not the queued save");
     }
 
     /// <summary>
@@ -425,7 +585,7 @@ public class AuctionHouseMarketPostgreSqlTest
 
         Assert.That(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false), Throws.InstanceOf<TransactionOutcomeUnknownException>());
 
-        Assert.That(AuctionBrokerSession.Of(buyer).IsQuarantined, Is.True);
+        Assert.That(buyer.PersistenceContext.IsQuarantined, Is.True);
 
         // The wallet of the character, because the disconnection may already have deselected the character.
         Assert.That(wallet.Money, Is.EqualTo(40_000_000), "no restore runs after a commit attempt");
@@ -520,6 +680,50 @@ public class AuctionHouseMarketPostgreSqlTest
         Assert.That(reader.GetInt64(1), Is.Zero, "no orphan storage remains");
     }
 
+    private async ValueTask<(Player Buyer, Guid ListingId, AuctionHouseMarket ExpiryMarket)> PrepareRaceAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._kris, 1)).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 50_000_000).ConfigureAwait(false);
+        var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
+        Assert.That(created.Result, Is.EqualTo(AuctionHouseResult.Success));
+        var expiryMarket = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), new ShiftedTimeProvider(TimeSpan.FromHours(49)));
+        await expiryMarket.EnsureIndexLoadedAsync().ConfigureAwait(false);
+        return (buyer, created.ListingId, expiryMarket);
+    }
+
+    private async ValueTask AssertRaceOutcomeAsync(Player buyer, bool sold)
+        => await this.AssertRaceOutcomeAsync(buyer.SelectedCharacter!.Inventory!.GetId(), sold).ConfigureAwait(false);
+
+    private async ValueTask AssertRaceOutcomeAsync(Guid buyerInventoryId, bool sold)
+    {
+        await using var data = this._database.CreateDataContext();
+        var listing = await data.Set<EfModel.AuctionListing>().SingleAsync().ConfigureAwait(false);
+        var entries = await data.Set<EfModel.AuctionCollectionEntry>().ToListAsync().ConfigureAwait(false);
+        if (sold)
+        {
+            Assert.That(listing.State, Is.EqualTo(AuctionListingState.SoldOut));
+            Assert.That(await this.GetDatabaseMoneyAsync(buyerInventoryId).ConfigureAwait(false), Is.EqualTo(40_000_000));
+            Assert.That(entries.Select(entry => entry.Kind), Is.EqualTo(new[] { AuctionHouseCollectionEntryKind.Proceeds }));
+        }
+        else
+        {
+            Assert.That(listing.State, Is.AnyOf(AuctionListingState.Expired, AuctionListingState.Active));
+            Assert.That(await this.GetDatabaseMoneyAsync(buyerInventoryId).ConfigureAwait(false), Is.EqualTo(50_000_000));
+            Assert.That(await data.Set<EfModel.AuctionSale>().CountAsync().ConfigureAwait(false), Is.Zero);
+            if (listing.State == AuctionListingState.Active)
+            {
+                Assert.That(entries, Is.Empty);
+                Assert.That(await data.Set<EfModel.Item>().CountAsync(item => item.ItemStorageId == listing.EscrowId).ConfigureAwait(false), Is.EqualTo(1));
+            }
+            else
+            {
+                Assert.That(entries.Select(entry => entry.Kind), Is.EqualTo(new[] { AuctionHouseCollectionEntryKind.Expired }));
+            }
+        }
+
+        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+    }
+
     private static void AssertItemState(Item? item)
     {
         Assert.That(item, Is.Not.Null);
@@ -601,9 +805,10 @@ public class AuctionHouseMarketPostgreSqlTest
         }).ConfigureAwait(false);
     }
 
-    private async ValueTask<long> GetDatabaseMoneyAsync(Player player)
+    private ValueTask<long> GetDatabaseMoneyAsync(Player player) => this.GetDatabaseMoneyAsync(player.SelectedCharacter!.Inventory!.GetId());
+
+    private async ValueTask<long> GetDatabaseMoneyAsync(Guid inventoryId)
     {
-        var inventoryId = player.SelectedCharacter!.Inventory!.GetId();
         await using var data = this._database.CreateDataContext();
         return await data.Set<EfModel.ItemStorage>().Where(storage => storage.Id == inventoryId).Select(storage => storage.Money).SingleAsync().ConfigureAwait(false);
     }
@@ -620,5 +825,17 @@ public class AuctionHouseMarketPostgreSqlTest
     private sealed class ShiftedTimeProvider(TimeSpan shift) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => TimeProvider.System.GetUtcNow() + shift;
+    }
+
+    /// <summary>
+    /// A time provider whose time is advanced by the test, from the system time.
+    /// </summary>
+    private sealed class SettableTimeProvider : TimeProvider
+    {
+        private long _offsetTicks;
+
+        public override DateTimeOffset GetUtcNow() => TimeProvider.System.GetUtcNow() + TimeSpan.FromTicks(Interlocked.Read(ref this._offsetTicks));
+
+        public void Advance(TimeSpan duration) => Interlocked.Add(ref this._offsetTicks, duration.Ticks);
     }
 }

@@ -126,7 +126,7 @@ internal sealed class AuctionMarketReader
     }
 
     /// <summary>
-    /// Gets the active listings of the player, oldest first.
+    /// Gets the active listings of the player whose duration didn't end yet, oldest first.
     /// </summary>
     /// <param name="player">The player.</param>
     /// <returns>The own listings.</returns>
@@ -134,7 +134,7 @@ internal sealed class AuctionMarketReader
     {
         var characterId = player.SelectedCharacter!.GetId();
         var now = this._now();
-        var listings = this._index.Where(listing => listing.SellerCharacterId == characterId);
+        var listings = this._index.Where(listing => listing.SellerCharacterId == characterId && listing.ExpiresAt > now);
         listings.Sort(CompareOldestFirst);
         var rows = listings
             .Take(byte.MaxValue)

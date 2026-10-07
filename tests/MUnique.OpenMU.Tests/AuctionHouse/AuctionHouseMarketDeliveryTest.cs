@@ -4,6 +4,7 @@
 
 namespace MUnique.OpenMU.Tests.AuctionHouse;
 
+using System.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MUnique.OpenMU.DataModel.Entities;
@@ -264,6 +265,127 @@ public class AuctionHouseMarketDeliveryTest
 
         this._seller.View<IShowAuctionNoticePlugIn>().Verify(v => v.ShowAuctionNoticeAsync(new AuctionHouseNotice(AuctionHouseNoticeKind.DeliveriesWaiting, 0, 0, 0, 0, 1)), Times.Once);
         this.VerifyNoNotice(this._buyer);
+    }
+
+    /// <summary>
+    /// The seller collects the proceeds by an own claim before the delivery runs: the delivery finds the entry gone and
+    /// announces it as delivered, not as waiting.
+    /// </summary>
+    [Test]
+    public async Task EntryCollectedByOwnClaimBeforeDeliveryIsAnnouncedAsDeliveredAsync()
+    {
+        var listingId = await this.ListItemAsync(10_000_000).ConfigureAwait(false);
+
+        // While the seller's own request holds the seller's persistence section, the delivery waits for it.
+        await this._seller.RunPersistenceExclusiveAsync(async () =>
+        {
+            var bought = await this._market.BuyListingAsync(this._buyer, new AuctionBuyListingOrder(listingId, 10_000_000)).ConfigureAwait(false);
+            Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
+            var claimed = await this._market.ClaimAsync(this._seller, new AuctionClaimOrder(null)).ConfigureAwait(false);
+            Assert.That(claimed.ZenCollected, Is.EqualTo(9_000_000));
+        }).ConfigureAwait(false);
+        await this._market.WaitForPendingDeliveriesAsync().ConfigureAwait(false);
+
+        this.VerifyNotice(this._seller, AuctionHouseNoticeKind.SoldToInventory, 9_000_000, 0);
+        this._seller.View<IShowAuctionNoticePlugIn>().Verify(v => v.ShowAuctionNoticeAsync(It.Is<AuctionHouseNotice>(n => n.Kind == AuctionHouseNoticeKind.Sold)), Times.Never);
+    }
+
+    /// <summary>
+    /// Two sales of one goods listing accumulate in one proceeds entry; the first delivery claims it completely, so the
+    /// second one finds it gone: both are announced as delivered.
+    /// </summary>
+    [Test]
+    public async Task SecondDeliveryOfAccumulatedProceedsIsAnnouncedAsDeliveredAsync()
+    {
+        await this.ListGoodsAsync(5).ConfigureAwait(false);
+        await AuctionHouseTestHelper.OpenBrokerAsync(this._seller).ConfigureAwait(false);
+
+        await this._seller.RunPersistenceExclusiveAsync(async () =>
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                var bought = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 1, 1_000_000)).ConfigureAwait(false);
+                Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
+            }
+        }).ConfigureAwait(false);
+        await this._market.WaitForPendingDeliveriesAsync().ConfigureAwait(false);
+
+        Assert.That(this._seller.Money, Is.EqualTo(100_000_000 - 250_000 + 1_800_000));
+        this._seller.View<IShowAuctionNoticePlugIn>().Verify(v => v.ShowAuctionNoticeAsync(It.Is<AuctionHouseNotice>(n => n.Kind == AuctionHouseNoticeKind.SoldToInventory && n.PendingCollection == 0)), Times.Exactly(2));
+    }
+
+    /// <summary>
+    /// A quarantined seller gets no delivery: the proceeds stay in the collection for the next login.
+    /// </summary>
+    [Test]
+    public async Task QuarantinedSellerGetsNoDeliveryAsync()
+    {
+        var listingId = await this.ListItemAsync(10_000_000).ConfigureAwait(false);
+        await AuctionHouseTestHelper.OpenBrokerAsync(this._seller).ConfigureAwait(false);
+        this._seller.PersistenceContext.Quarantine();
+        var money = this._seller.Money;
+
+        await this.BuyAsync(listingId).ConfigureAwait(false);
+
+        Assert.That(this._seller.Money, Is.EqualTo(money));
+        Assert.That((await this._helper.GetEntriesAsync(this._seller.SelectedCharacter!).ConfigureAwait(false)).Single().UncollectedMoney, Is.EqualTo(9_000_000));
+        this.VerifyNoNotice(this._seller);
+    }
+
+    /// <summary>
+    /// Own listings and the seller summary leave out listings whose duration ended, before the expiry ran.
+    /// </summary>
+    [Test]
+    public async Task OwnListingsAndSummaryExcludeExpiredListingsAsync()
+    {
+        await this.ListItemAsync(1_000_000).ConfigureAwait(false);
+        this._time.Advance(TimeSpan.FromHours(24));
+        await this.ListGoodsAsync(2).ConfigureAwait(false);
+        this._time.Advance(TimeSpan.FromHours(25));
+
+        var own = await this._market.GetOwnListingsAsync(this._seller).ConfigureAwait(false);
+        var summary = await this._market.GetSellerSummaryAsync(this._seller).ConfigureAwait(false);
+        var check = await this._market.CheckSellAsync(this._seller, new AuctionSellCheckQuery(Slot)).ConfigureAwait(false);
+
+        Assert.That(own.Listings.Select(row => row.Kind), Is.EqualTo(new[] { AuctionHouseListingKind.Goods }));
+        Assert.That(summary.ActiveListings, Is.EqualTo(1));
+        Assert.That(check.ActiveListings, Is.EqualTo(1));
+    }
+
+    /// <summary>
+    /// A run which passed the deadline check, but acquired the run gate only after another run of a sharing game
+    /// context finished, checks the deadline again and doesn't run.
+    /// </summary>
+    [Test]
+    public async Task ExpiryRechecksDeadlineAfterAcquiringGateAsync()
+    {
+        var first = await this.ListGoodsAsync(2).ConfigureAwait(false);
+        var second = await this.ListItemAsync(1_000_000).ConfigureAwait(false);
+        (await this._helper.GetListingAsync(second).ConfigureAwait(false))!.ExpiresAt = this._time.GetUtcNow().UtcDateTime.AddHours(72);
+        this._time.Advance(TimeSpan.FromHours(48));
+        var pausedAtGate = new TaskCompletionSource();
+        var releaseGate = new TaskCompletionSource();
+        var calls = 0;
+        this._market.BeforeExpiryGate = async () =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                pausedAtGate.SetResult();
+                await releaseGate.Task.ConfigureAwait(false);
+            }
+        };
+
+        var paused = this._market.ExpireDueListingsAsync().AsTask();
+        await pausedAtGate.Task.ConfigureAwait(false);
+        var other = await this._market.ExpireDueListingsAsync().ConfigureAwait(false);
+        (await this._helper.GetListingAsync(second).ConfigureAwait(false))!.ExpiresAt = this._time.GetUtcNow().UtcDateTime;
+        releaseGate.SetResult();
+        var late = await paused.ConfigureAwait(false);
+
+        Assert.That(other, Is.EqualTo(1));
+        Assert.That(late, Is.Zero, "the late run must not run within the interval");
+        Assert.That((await this._helper.GetListingAsync(first).ConfigureAwait(false))!.State, Is.EqualTo(AuctionListingState.Expired));
+        Assert.That((await this._helper.GetListingAsync(second).ConfigureAwait(false))!.State, Is.EqualTo(AuctionListingState.Active));
     }
 
     private async ValueTask<Player> CreateOnlinePlayerAsync(GameContext gameContext, string name, int money)

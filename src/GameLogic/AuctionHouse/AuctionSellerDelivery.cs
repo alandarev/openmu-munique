@@ -112,7 +112,13 @@ internal sealed class AuctionSellerDelivery
                     return;
                 }
 
-                var deliveredInFull = false;
+                if (seller.PersistenceContext.IsQuarantined)
+                {
+                    // Nothing may move to a quarantined player; the entry stays in the collection for the next login.
+                    return;
+                }
+
+                bool deliveredInFull;
                 if (AuctionBrokerSession.IsBrokerOpen(seller))
                 {
                     try
@@ -122,17 +128,26 @@ internal sealed class AuctionSellerDelivery
                     catch (TransactionOutcomeUnknownException)
                     {
                         // The seller's state in memory may contradict the database: no notice, disconnect.
-                        AuctionHouseQuarantine.Quarantine(seller, this._logger);
+                        await PlayerPersistenceQuarantine.QuarantineAsync(seller).ConfigureAwait(false);
                         return;
                     }
                     catch (Exception ex)
                     {
                         // The claim is rolled back; the entry waits in the collection, which the notice says.
                         this._logger.LogError(ex, "Error while claiming the auction house collection entry {entry} for {seller}.", order.EntryId, order.CharacterName);
+                        deliveredInFull = false;
                     }
+                }
+                else
+                {
+                    deliveredInFull = false;
                 }
 
                 var pending = await seller.PersistenceContext.GetAuctionCollectionEntryIdsAsync(order.CharacterId).ConfigureAwait(false);
+
+                // An entry which is gone was collected already: by the seller's own claim, or by the delivery of an
+                // earlier sale whose proceeds accumulated in the same entry.
+                deliveredInFull |= !pending.Contains(order.EntryId);
                 var notice = new AuctionHouseNotice(
                     deliveredInFull ? order.DeliveredKind : order.WaitingKind,
                     order.ItemType,
@@ -152,16 +167,21 @@ internal sealed class AuctionSellerDelivery
     /// <summary>
     /// Claims the entry for the seller at the broker, in the seller's own context.
     /// </summary>
-    /// <returns><see langword="true"/>, if the entry was delivered in full.</returns>
+    /// <returns><see langword="true"/>, if the entry was delivered in full, also when it was collected already.</returns>
     private async ValueTask<bool> ClaimAsync(Player seller, AuctionSellerDeliveryOrder order)
     {
         AuctionCollectionClaim? claim = null;
         var deliveredInFull = await seller.PersistenceContext.RunInTransactionAsync(async transaction =>
         {
             var entry = (await transaction.LockAsync<AuctionCollectionEntry>([order.EntryId]).ConfigureAwait(false)).FirstOrDefault();
-            if (entry is null || entry.OwnerCharacterId != order.CharacterId)
+            if (entry is null)
             {
-                // Claimed meanwhile by the seller.
+                // Collected meanwhile, by the seller's own claim or an earlier delivery of the same proceeds entry.
+                return true;
+            }
+
+            if (entry.OwnerCharacterId != order.CharacterId)
+            {
                 return false;
             }
 

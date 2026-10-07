@@ -122,7 +122,7 @@ public class AuctionHouseActionTest
         market.Setup(m => m.GetSellerSummaryAsync(It.IsAny<Player>())).ReturnsAsync(AuctionSellerSummary.None);
         var player = await AuctionHouseTestHelper.CreatePlayerAsync(market.Object).ConfigureAwait(false);
         await AuctionHouseTestHelper.OpenBrokerAsync(player).ConfigureAwait(false);
-        AuctionBrokerSession.Of(player).Quarantine();
+        player.PersistenceContext.Quarantine();
 
         await this._action.ClaimAsync(player, 8, new AuctionClaimOrder(null)).ConfigureAwait(false);
 

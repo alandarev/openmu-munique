@@ -99,15 +99,16 @@ public sealed class AuctionListingIndex
     }
 
     /// <summary>
-    /// Gets the count of active listings of a seller.
+    /// Gets the count of active listings of a seller whose duration didn't end yet.
     /// </summary>
     /// <param name="sellerCharacterId">The identifier of the selling character.</param>
+    /// <param name="now">The current point in time (UTC); listings which expired at that time aren't counted.</param>
     /// <returns>The count of active listings.</returns>
-    public int CountOfSeller(Guid sellerCharacterId)
+    public int CountOfSeller(Guid sellerCharacterId, DateTime now)
     {
         lock (this._syncRoot)
         {
-            return this._listings.Values.Count(listing => listing.SellerCharacterId == sellerCharacterId);
+            return this._listings.Values.Count(listing => listing.SellerCharacterId == sellerCharacterId && listing.ExpiresAt > now);
         }
     }
 

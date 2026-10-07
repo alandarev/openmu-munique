@@ -346,9 +346,9 @@ public class AuctionHouseAction
         }
 
         var session = AuctionBrokerSession.Of(player);
-        if (session.IsQuarantined)
+        if (player.PersistenceContext.IsQuarantined)
         {
-            // The outcome of a transaction of the player is unknown; the player is being disconnected.
+            // The in-memory state of the player may contradict the database; the player is being disconnected.
             await answer(refuse(AuctionHouseResult.InternalError)).ConfigureAwait(false);
             return;
         }
