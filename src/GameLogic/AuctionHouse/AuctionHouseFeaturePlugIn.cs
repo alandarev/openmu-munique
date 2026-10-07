@@ -20,7 +20,7 @@ using MUnique.OpenMU.PlugIns;
 [PlugIn]
 [Display(Name = nameof(PlugInResources.AuctionHouseFeaturePlugIn_Name), Description = nameof(PlugInResources.AuctionHouseFeaturePlugIn_Description), ResourceType = typeof(PlugInResources))]
 [Guid("0BC1F21C-97E4-4C69-9E8C-0C6A4E5D7A31")]
-public class AuctionHouseFeaturePlugIn : IFeaturePlugIn, ISupportCustomConfiguration<AuctionHouseRules>, ISupportDefaultCustomConfiguration, IDisabledByDefault
+public class AuctionHouseFeaturePlugIn : IFeaturePlugIn, ISupportCustomConfiguration<AuctionHouseRules>, ISupportDefaultCustomConfiguration
 {
     /// <inheritdoc/>
     public AuctionHouseRules? Configuration { get; set; }

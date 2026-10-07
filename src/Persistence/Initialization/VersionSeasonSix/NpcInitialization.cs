@@ -1018,7 +1018,7 @@ internal partial class NpcInitialization : Version095d.NpcInitialization
             var def = this.Context.CreateNew<MonsterDefinition>();
             def.Number = 568;
             def.Designation = "Wandering Merchant Zyro";
-            def.NpcWindow = NpcWindow.NpcDialog;
+            def.NpcWindow = NpcWindow.AuctionHouse; // the auction house broker, see AuctionHouseFeaturePlugIn
             def.ObjectKind = NpcObjectKind.PassiveNpc;
             def.SetGuid(def.Number);
             this.GameConfiguration.Monsters.Add(def);
