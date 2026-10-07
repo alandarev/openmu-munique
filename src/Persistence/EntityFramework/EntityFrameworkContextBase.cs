@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.DataModel.Composition;
 using MUnique.OpenMU.DataModel.Configuration;
+using MUnique.OpenMU.Persistence.EntityFramework.Json;
 using Nito.AsyncEx;
 using Nito.Disposables;
 
@@ -21,6 +22,8 @@ using Nito.Disposables;
 /// </summary>
 internal class EntityFrameworkContextBase : IContext
 {
+    private static readonly MethodInfo LoadAggregateMethod = typeof(EntityFrameworkContextBase).GetMethod(nameof(LoadAggregateCoreAsync), BindingFlags.Instance | BindingFlags.NonPublic)!;
+
     private readonly bool _isOwner;
     private readonly IConfigurationChangeListener? _changeListener;
     private readonly AsyncLock _lock = new();
@@ -149,7 +152,7 @@ internal class EntityFrameworkContextBase : IContext
                     this._logger.LogWarning(ex, "Error while rolling back a transaction.");
                 }
 
-                transaction.Restore(this._logger);
+                await transaction.RestoreAsync(this._logger).ConfigureAwait(false);
                 foreach (var added in this.GetAddedEntities().Where(entity => !addedBefore.Contains(entity)))
                 {
                     this.Context.Entry(added).State = EntityState.Detached;
@@ -379,6 +382,22 @@ internal class EntityFrameworkContextBase : IContext
             or KeyNotFoundException;
     }
 
+    /// <summary>
+    /// Loads an aggregate with one JSON query, like accounts, without tracking it. References to configuration
+    /// objects are resolved from the cache of the current game configuration.
+    /// </summary>
+    /// <param name="modelType">The type of the persistent model of the aggregate root.</param>
+    /// <param name="id">The identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The loaded aggregate, if it exists.</returns>
+    internal async ValueTask<object?> LoadAggregateAsync(Type modelType, Guid id, CancellationToken cancellationToken)
+    {
+        using var contextUsage = this.RepositoryProvider.ContextStack.UseContext(this);
+        (this.RepositoryProvider as ICacheAwareRepositoryProvider)?.EnsureCachesForCurrentGameConfiguration();
+        var loading = (ValueTask<object?>)LoadAggregateMethod.MakeGenericMethod(modelType).Invoke(this, [id, cancellationToken])!;
+        return await loading.ConfigureAwait(false);
+    }
+
     private async ValueTask<bool> SaveChangesCoreAsync(CancellationToken cancellationToken)
     {
         using var l = await this.AcquireLockAsync().ConfigureAwait(false);
@@ -437,6 +456,12 @@ internal class EntityFrameworkContextBase : IContext
                 entry.State = EntityState.Unchanged;
             }
         }
+    }
+
+    private async ValueTask<object?> LoadAggregateCoreAsync<TModel>(Guid id, CancellationToken cancellationToken)
+        where TModel : class, IIdentifiable
+    {
+        return await new AccountJsonObjectLoader().LoadObjectAsync<TModel>(id, this.Context, cancellationToken).ConfigureAwait(false);
     }
 
     private HashSet<object> GetAddedEntities()

@@ -94,6 +94,33 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionListing>> GetActiveAuctionListingsAsync(CancellationToken cancellationToken = default)
+    {
+        var listings = await this.Provider.GetRepository<AuctionListing>().GetAllAsync(cancellationToken).ConfigureAwait(false);
+        return listings.Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active).OrderBy(listing => listing.Id).ToList();
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> GetActiveAuctionListingCountAsync(Guid sellerCharacterId, CancellationToken cancellationToken = default)
+    {
+        var listings = await this.Provider.GetRepository<AuctionListing>().GetAllAsync(cancellationToken).ConfigureAwait(false);
+        return listings.Count(listing => listing.SellerCharacterId == sellerCharacterId && listing.State == DataModel.Entities.AuctionListingState.Active);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Guid>> GetAuctionCollectionEntryIdsAsync(Guid ownerCharacterId, Guid? listingId = null, DataModel.Entities.AuctionHouseCollectionEntryKind? kind = null, CancellationToken cancellationToken = default)
+    {
+        var entries = await this.Provider.GetRepository<AuctionCollectionEntry>().GetAllAsync(cancellationToken).ConfigureAwait(false);
+        return entries
+            .Where(entry => entry.OwnerCharacterId == ownerCharacterId
+                            && (listingId is null || entry.ListingId == listingId)
+                            && (kind is null || entry.Kind == kind))
+            .Select(entry => entry.Id)
+            .Order()
+            .ToList();
+    }
+
+    /// <inheritdoc />
     public async ValueTask<T> RunInTransactionAsync<T>(Func<IPersistenceTransaction, ValueTask<T>> operation, CancellationToken cancellationToken = default)
     {
         await this.Provider.TransactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -106,7 +133,7 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
             }
             catch
             {
-                transaction.Restore();
+                await transaction.RestoreAsync().ConfigureAwait(false);
                 throw;
             }
         }

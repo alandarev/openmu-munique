@@ -147,4 +147,69 @@ internal class PlayerContext : CachingEntityFrameworkContext, IPlayerContext
                 .ConfigureAwait(false);
         }
     }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionListing>> GetActiveAuctionListingsAsync(CancellationToken cancellationToken = default)
+    {
+        System.Collections.Generic.List<Guid> ids;
+        using (this.RepositoryProvider.ContextStack.UseContext(this))
+        {
+            ids = await this.Context.Set<AuctionListing>()
+                .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active)
+                .OrderBy(listing => listing.Id)
+                .Select(listing => listing.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var result = new System.Collections.Generic.List<DataModel.Entities.AuctionListing>(ids.Count);
+        await this.Context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            foreach (var id in ids)
+            {
+                if (await this.LoadAggregateAsync(typeof(AuctionListing), id, cancellationToken).ConfigureAwait(false) is AuctionListing listing)
+                {
+                    result.Add(listing);
+                }
+            }
+        }
+        finally
+        {
+            await this.Context.Database.CloseConnectionAsync().ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> GetActiveAuctionListingCountAsync(Guid sellerCharacterId, CancellationToken cancellationToken = default)
+    {
+        using (this.RepositoryProvider.ContextStack.UseContext(this))
+        {
+            return await this.Context.Set<AuctionListing>()
+                .CountAsync(listing => listing.SellerCharacterId == sellerCharacterId && listing.State == DataModel.Entities.AuctionListingState.Active, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Guid>> GetAuctionCollectionEntryIdsAsync(Guid ownerCharacterId, Guid? listingId = null, DataModel.Entities.AuctionHouseCollectionEntryKind? kind = null, CancellationToken cancellationToken = default)
+    {
+        using (this.RepositoryProvider.ContextStack.UseContext(this))
+        {
+            var query = this.Context.Set<AuctionCollectionEntry>().Where(entry => entry.OwnerCharacterId == ownerCharacterId);
+            if (listingId is { } listing)
+            {
+                query = query.Where(entry => entry.ListingId == listing);
+            }
+
+            if (kind is { } entryKind)
+            {
+                query = query.Where(entry => entry.Kind == entryKind);
+            }
+
+            return await query.OrderBy(entry => entry.Id).Select(entry => entry.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
 }

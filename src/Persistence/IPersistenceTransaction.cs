@@ -30,9 +30,24 @@ public interface IPersistenceTransaction
         where T : class;
 
     /// <summary>
+    /// Detaches an entity with its aggregate members from the context when the transaction ends, like the locked
+    /// entities; for entities which the operation created or loaded and which aren't part of the graph of the context's
+    /// account, so that the context doesn't keep them.
+    /// </summary>
+    /// <param name="entity">The entity.</param>
+    void DetachWhenCompleted(object entity);
+
+    /// <summary>
     /// Registers an action which restores an in-memory change of the operation when the transaction fails.
     /// The actions run in the reverse order of their registration, after the database transaction got rolled back.
     /// </summary>
     /// <param name="restore">The action which restores the change.</param>
     void OnRollback(Action restore);
+
+    /// <summary>
+    /// Registers an asynchronous action which restores an in-memory change of the operation when the transaction fails.
+    /// The actions run in the reverse order of their registration, after the database transaction got rolled back.
+    /// </summary>
+    /// <param name="restore">The action which restores the change.</param>
+    void OnRollback(Func<ValueTask> restore);
 }

@@ -13,7 +13,7 @@ using System.Threading;
 internal sealed class InMemoryTransaction : IPersistenceTransaction
 {
     private readonly IContext _context;
-    private readonly List<Action> _restoreActions = [];
+    private readonly List<Func<ValueTask>> _restoreActions = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InMemoryTransaction"/> class.
@@ -41,7 +41,23 @@ internal sealed class InMemoryTransaction : IPersistenceTransaction
     }
 
     /// <inheritdoc />
+    /// <remarks>The in-memory contexts share their objects, so there is nothing to detach.</remarks>
+    public void DetachWhenCompleted(object entity)
+    {
+    }
+
+    /// <inheritdoc />
     public void OnRollback(Action restore)
+    {
+        this._restoreActions.Add(() =>
+        {
+            restore();
+            return ValueTask.CompletedTask;
+        });
+    }
+
+    /// <inheritdoc />
+    public void OnRollback(Func<ValueTask> restore)
     {
         this._restoreActions.Add(restore);
     }
@@ -49,11 +65,12 @@ internal sealed class InMemoryTransaction : IPersistenceTransaction
     /// <summary>
     /// Runs the registered restore actions in reverse order.
     /// </summary>
-    internal void Restore()
+    /// <returns>The task.</returns>
+    internal async ValueTask RestoreAsync()
     {
         for (var i = this._restoreActions.Count - 1; i >= 0; i--)
         {
-            this._restoreActions[i]();
+            await this._restoreActions[i]().ConfigureAwait(false);
         }
     }
 }

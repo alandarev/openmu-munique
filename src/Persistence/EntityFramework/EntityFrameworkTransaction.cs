@@ -4,22 +4,18 @@
 
 namespace MUnique.OpenMU.Persistence.EntityFramework;
 
-using System.Reflection;
 using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using MUnique.OpenMU.Persistence.EntityFramework.Json;
 
 /// <summary>
 /// The transaction of <see cref="EntityFrameworkContextBase.RunInTransactionAsync{T}"/>.
 /// </summary>
 internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
 {
-    private static readonly MethodInfo LoadObjectMethod = typeof(EntityFrameworkTransaction).GetMethod(nameof(LoadObjectAsync), BindingFlags.Instance | BindingFlags.NonPublic)!;
-
     private readonly EntityFrameworkContextBase _context;
     private readonly List<object> _lockedEntities = [];
-    private readonly List<Action> _restoreActions = [];
+    private readonly List<Func<ValueTask>> _restoreActions = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EntityFrameworkTransaction"/> class.
@@ -47,9 +43,6 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
         var sql = $$"""SELECT "Id" AS "Value" FROM "{{entityType.GetSchema()}}"."{{entityType.GetTableName()}}" WHERE "Id" = ANY({0}) ORDER BY "Id" FOR UPDATE""";
         var lockedIds = await dbContext.Database.SqlQueryRaw<Guid>(sql, new object[] { idArray }).ToListAsync(cancellationToken).ConfigureAwait(false);
 
-        using var contextUsage = this._context.RepositoryProvider.ContextStack.UseContext(this._context);
-        (this._context.RepositoryProvider as ICacheAwareRepositoryProvider)?.EnsureCachesForCurrentGameConfiguration();
-        var loadObject = LoadObjectMethod.MakeGenericMethod(entityType.ClrType);
         var result = new List<T>(lockedIds.Count);
         foreach (var id in lockedIds)
         {
@@ -61,10 +54,7 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
                 this._context.Detach(trackedEntry.Entity);
             }
 
-            // Like accounts, the aggregate is loaded with one JSON query; references to configuration objects are
-            // resolved from the cache of the current game configuration.
-            var loading = (ValueTask<object?>)loadObject.Invoke(this, [id, cancellationToken])!;
-            var entity = await loading.ConfigureAwait(false) as T
+            var entity = await this._context.LoadAggregateAsync(entityType.ClrType, id, cancellationToken).ConfigureAwait(false) as T
                          ?? throw new InvalidOperationException($"The locked {typeof(T).Name} {id} could not be loaded.");
             dbContext.Attach(entity);
             this._lockedEntities.Add(entity);
@@ -75,7 +65,23 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
     }
 
     /// <inheritdoc />
+    public void DetachWhenCompleted(object entity)
+    {
+        this._lockedEntities.Add(entity);
+    }
+
+    /// <inheritdoc />
     public void OnRollback(Action restore)
+    {
+        this._restoreActions.Add(() =>
+        {
+            restore();
+            return ValueTask.CompletedTask;
+        });
+    }
+
+    /// <inheritdoc />
+    public void OnRollback(Func<ValueTask> restore)
     {
         this._restoreActions.Add(restore);
     }
@@ -84,13 +90,14 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
     /// Runs the registered restore actions in reverse order.
     /// </summary>
     /// <param name="logger">The logger for failing restore actions.</param>
-    internal void Restore(ILogger logger)
+    /// <returns>The task.</returns>
+    internal async ValueTask RestoreAsync(ILogger logger)
     {
         for (var i = this._restoreActions.Count - 1; i >= 0; i--)
         {
             try
             {
-                this._restoreActions[i]();
+                await this._restoreActions[i]().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -100,7 +107,7 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
     }
 
     /// <summary>
-    /// Detaches the locked entities with their aggregate members from the context.
+    /// Detaches the locked entities and those given to <see cref="DetachWhenCompleted"/> with their aggregate members from the context.
     /// </summary>
     internal void DetachLockedEntities()
     {
@@ -108,18 +115,5 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
         {
             this._context.Detach(entity);
         }
-    }
-
-    /// <summary>
-    /// Loads the aggregate with the given identifier through the connection of the transaction.
-    /// </summary>
-    /// <typeparam name="TModel">The type of the persistent model.</typeparam>
-    /// <param name="id">The identifier.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The loaded object, if it exists.</returns>
-    private async ValueTask<object?> LoadObjectAsync<TModel>(Guid id, CancellationToken cancellationToken)
-        where TModel : class, IIdentifiable
-    {
-        return await new AccountJsonObjectLoader().LoadObjectAsync<TModel>(id, this._context.Context, cancellationToken).ConfigureAwait(false);
     }
 }
