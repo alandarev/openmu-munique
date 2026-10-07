@@ -2583,4 +2583,70 @@
   <data name="ShowAuctionNoticePlugIn_Description" xml:space="preserve">
     <value>Notifies the game client about sold or expired auction house listings and waiting deliveries.</value>
   </data>
+  <data name="AuctionSearchRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Search Request</value>
+  </data>
+  <data name="AuctionSearchRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the equipment search request of the auction house.</value>
+  </data>
+  <data name="AuctionGoodsListRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Goods List Request</value>
+  </data>
+  <data name="AuctionGoodsListRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the goods list request of the auction house.</value>
+  </data>
+  <data name="AuctionGoodsQuoteRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Goods Quote Request</value>
+  </data>
+  <data name="AuctionGoodsQuoteRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request for the price of a quantity of goods of the auction house.</value>
+  </data>
+  <data name="AuctionBuyListingRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Buy Listing Request</value>
+  </data>
+  <data name="AuctionBuyListingRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request to buy an item listing of the auction house.</value>
+  </data>
+  <data name="AuctionBuyGoodsRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Buy Goods Request</value>
+  </data>
+  <data name="AuctionBuyGoodsRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request to buy a quantity of goods of the auction house.</value>
+  </data>
+  <data name="AuctionCreateListingRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Create Listing Request</value>
+  </data>
+  <data name="AuctionCreateListingRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request to list an item or goods in the auction house.</value>
+  </data>
+  <data name="AuctionCancelListingRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Cancel Listing Request</value>
+  </data>
+  <data name="AuctionCancelListingRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request to cancel an own listing of the auction house.</value>
+  </data>
+  <data name="AuctionOwnListingsRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Own Listings Request</value>
+  </data>
+  <data name="AuctionOwnListingsRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request for the own listings of the auction house.</value>
+  </data>
+  <data name="AuctionCollectionRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Collection Request</value>
+  </data>
+  <data name="AuctionCollectionRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request for a page of the auction house collection.</value>
+  </data>
+  <data name="AuctionClaimRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Claim Request</value>
+  </data>
+  <data name="AuctionClaimRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request to claim one entry or every entry of the auction house collection.</value>
+  </data>
+  <data name="AuctionSellCheckRequestHandlerPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Sell Check Request</value>
+  </data>
+  <data name="AuctionSellCheckRequestHandlerPlugIn_Description" xml:space="preserve">
+    <value>Handles the request whether an item of the inventory can be listed in the auction house.</value>
+  </data>
 </root>

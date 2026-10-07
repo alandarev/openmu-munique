@@ -475,6 +475,204 @@ namespace MUnique.OpenMU.GameServer.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Handles the request to buy a quantity of goods of the auction house..
+        /// </summary>
+        public static string AuctionBuyGoodsRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionBuyGoodsRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Buy Goods Request.
+        /// </summary>
+        public static string AuctionBuyGoodsRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionBuyGoodsRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request to buy an item listing of the auction house..
+        /// </summary>
+        public static string AuctionBuyListingRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionBuyListingRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Buy Listing Request.
+        /// </summary>
+        public static string AuctionBuyListingRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionBuyListingRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request to cancel an own listing of the auction house..
+        /// </summary>
+        public static string AuctionCancelListingRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionCancelListingRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Cancel Listing Request.
+        /// </summary>
+        public static string AuctionCancelListingRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionCancelListingRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request to claim one entry or every entry of the auction house collection..
+        /// </summary>
+        public static string AuctionClaimRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionClaimRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Claim Request.
+        /// </summary>
+        public static string AuctionClaimRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionClaimRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request for a page of the auction house collection..
+        /// </summary>
+        public static string AuctionCollectionRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionCollectionRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Collection Request.
+        /// </summary>
+        public static string AuctionCollectionRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionCollectionRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request to list an item or goods in the auction house..
+        /// </summary>
+        public static string AuctionCreateListingRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionCreateListingRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Create Listing Request.
+        /// </summary>
+        public static string AuctionCreateListingRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionCreateListingRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the goods list request of the auction house..
+        /// </summary>
+        public static string AuctionGoodsListRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionGoodsListRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Goods List Request.
+        /// </summary>
+        public static string AuctionGoodsListRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionGoodsListRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request for the price of a quantity of goods of the auction house..
+        /// </summary>
+        public static string AuctionGoodsQuoteRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionGoodsQuoteRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Goods Quote Request.
+        /// </summary>
+        public static string AuctionGoodsQuoteRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionGoodsQuoteRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request for the own listings of the auction house..
+        /// </summary>
+        public static string AuctionOwnListingsRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionOwnListingsRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Own Listings Request.
+        /// </summary>
+        public static string AuctionOwnListingsRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionOwnListingsRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the equipment search request of the auction house..
+        /// </summary>
+        public static string AuctionSearchRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionSearchRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Search Request.
+        /// </summary>
+        public static string AuctionSearchRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionSearchRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Handles the request whether an item of the inventory can be listed in the auction house..
+        /// </summary>
+        public static string AuctionSellCheckRequestHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionSellCheckRequestHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Sell Check Request.
+        /// </summary>
+        public static string AuctionSellCheckRequestHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionSellCheckRequestHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Packet handler for available quest request packets (0xF6, 0x30 identifier).
         /// </summary>
         public static string AvailableQuestsRequestHandlerPlugIn_Description {
