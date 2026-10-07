@@ -27,42 +27,14 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
     }
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<T>> LockAsync<T>(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+    public ValueTask<IReadOnlyList<T>> LockAsync<T>(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
         where T : class
-    {
-        var dbContext = this._context.Context;
-        var entityType = dbContext.Model.FindLeastDerivedEntityTypes(typeof(T)).FirstOrDefault()
-                         ?? throw new ArgumentException($"{typeof(T)} is not part of the model of the context.", nameof(T));
-        var idArray = ids.Distinct().ToArray();
-        if (idArray.Length == 0)
-        {
-            return [];
-        }
+        => this.LockAsync<T>(ids, false, cancellationToken);
 
-        // FOR UPDATE locks the rows in the order in which they are returned, so ORDER BY gives a global lock order.
-        var sql = $$"""SELECT "Id" AS "Value" FROM "{{entityType.GetSchema()}}"."{{entityType.GetTableName()}}" WHERE "Id" = ANY({0}) ORDER BY "Id" FOR UPDATE""";
-        var lockedIds = await dbContext.Database.SqlQueryRaw<Guid>(sql, new object[] { idArray }).ToListAsync(cancellationToken).ConfigureAwait(false);
-
-        var result = new List<T>(lockedIds.Count);
-        foreach (var id in lockedIds)
-        {
-            var trackedEntry = dbContext.ChangeTracker.Entries()
-                .FirstOrDefault(entry => entry.Entity is T && entry.Entity is IIdentifiable identifiable && identifiable.Id == id);
-            if (trackedEntry is not null)
-            {
-                // It may hold values from before another transaction changed the row.
-                this._context.Detach(trackedEntry.Entity);
-            }
-
-            var entity = await this._context.LoadAggregateAsync(entityType.ClrType, id, cancellationToken).ConfigureAwait(false) as T
-                         ?? throw new InvalidOperationException($"The locked {typeof(T).Name} {id} could not be loaded.");
-            dbContext.Attach(entity);
-            this._lockedEntities.Add(entity);
-            result.Add(entity);
-        }
-
-        return result;
-    }
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<T>> LockAvailableAsync<T>(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+        where T : class
+        => this.LockAsync<T>(ids, true, cancellationToken);
 
     /// <inheritdoc />
     public void DetachWhenCompleted(object entity)
@@ -115,5 +87,42 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
         {
             this._context.Detach(entity);
         }
+    }
+
+    private async ValueTask<IReadOnlyList<T>> LockAsync<T>(IEnumerable<Guid> ids, bool skipLocked, CancellationToken cancellationToken)
+        where T : class
+    {
+        var dbContext = this._context.Context;
+        var entityType = dbContext.Model.FindLeastDerivedEntityTypes(typeof(T)).FirstOrDefault()
+                         ?? throw new ArgumentException($"{typeof(T)} is not part of the model of the context.", nameof(T));
+        var idArray = ids.Distinct().ToArray();
+        if (idArray.Length == 0)
+        {
+            return [];
+        }
+
+        // FOR UPDATE locks the rows in the order in which they are returned, so ORDER BY gives a global lock order.
+        var sql = $$"""SELECT "Id" AS "Value" FROM "{{entityType.GetSchema()}}"."{{entityType.GetTableName()}}" WHERE "Id" = ANY({0}) ORDER BY "Id" FOR UPDATE{{(skipLocked ? " SKIP LOCKED" : string.Empty)}}""";
+        var lockedIds = await dbContext.Database.SqlQueryRaw<Guid>(sql, new object[] { idArray }).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        var result = new List<T>(lockedIds.Count);
+        foreach (var id in lockedIds)
+        {
+            var trackedEntry = dbContext.ChangeTracker.Entries()
+                .FirstOrDefault(entry => entry.Entity is T && entry.Entity is IIdentifiable identifiable && identifiable.Id == id);
+            if (trackedEntry is not null)
+            {
+                // It may hold values from before another transaction changed the row.
+                this._context.Detach(trackedEntry.Entity);
+            }
+
+            var entity = await this._context.LoadAggregateAsync(entityType.ClrType, id, cancellationToken).ConfigureAwait(false) as T
+                         ?? throw new InvalidOperationException($"The locked {typeof(T).Name} {id} could not be loaded.");
+            dbContext.Attach(entity);
+            this._lockedEntities.Add(entity);
+            result.Add(entity);
+        }
+
+        return result;
     }
 }

@@ -60,8 +60,8 @@ public sealed record AuctionIndexedListing(
             (uint)listing.UnitPrice,
             (uint)listing.ListedQuantity,
             (uint)listing.RemainingQuantity,
-            listing.CreatedAt,
-            listing.ExpiresAt,
+            AuctionHouseTimes.ToUtc(listing.CreatedAt),
+            AuctionHouseTimes.ToUtc(listing.ExpiresAt),
             listing.Kind == AuctionHouseListingKind.Item ? listing.Escrow?.Items.FirstOrDefault() : null);
     }
 }

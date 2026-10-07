@@ -103,6 +103,27 @@ public static class ItemExtensions
     }
 
     /// <summary>
+    /// Gets the excellent option bits of an item, as the item serializers write them: bit <c>n - 1</c> for the
+    /// excellent or wing option with the number <c>n</c>. For wings, the bits are the wing options.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns>The excellent option bits.</returns>
+    public static byte GetExcellentOptionBits(this Item item)
+    {
+        byte result = 0;
+        foreach (var option in item.ItemOptions)
+        {
+            if (option.ItemOption is { } itemOption
+                && (itemOption.OptionType == ItemOptionTypes.Excellent || itemOption.OptionType == ItemOptionTypes.Wing))
+            {
+                result |= (byte)(1 << (itemOption.Number - 1));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Determines whether this instance is a "380 item", that is, if it can be upgraded with Jewel of Guardian.
     /// </summary>
     /// <param name="item">The item.</param>

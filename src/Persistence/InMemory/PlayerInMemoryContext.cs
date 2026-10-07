@@ -115,8 +115,37 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
             .Where(entry => entry.OwnerCharacterId == ownerCharacterId
                             && (listingId is null || entry.ListingId == listingId)
                             && (kind is null || entry.Kind == kind))
+            .OrderBy(entry => entry.UpdatedAt)
+            .ThenBy(entry => entry.Id)
             .Select(entry => entry.Id)
-            .Order()
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionCollectionEntry>> GetAuctionCollectionEntriesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var result = new List<DataModel.Entities.AuctionCollectionEntry>(ids.Count);
+        var repository = this.Provider.GetRepository<AuctionCollectionEntry>();
+        foreach (var id in ids)
+        {
+            if (await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false) is { } entry)
+            {
+                result.Add(entry);
+            }
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default)
+    {
+        var listings = await this.Provider.GetRepository<AuctionListing>().GetAllAsync(cancellationToken).ConfigureAwait(false);
+        return listings
+            .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active && listing.ExpiresAt <= now)
+            .OrderBy(listing => listing.ExpiresAt)
+            .Select(listing => listing.Id)
+            .Take(maximumCount)
             .ToList();
     }
 

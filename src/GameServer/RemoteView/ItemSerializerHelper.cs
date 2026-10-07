@@ -66,18 +66,7 @@ public static class ItemSerializerHelper
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>The byte.</returns>
-    public static byte GetExcellentByte(Item item)
-    {
-        byte result = 0;
-        var excellentOptions = item.ItemOptions.Where(o => o.ItemOption?.OptionType == ItemOptionTypes.Excellent || o.ItemOption?.OptionType == ItemOptionTypes.Wing);
-
-        foreach (var option in excellentOptions)
-        {
-            result |= (byte)(1 << (option.ItemOption!.Number - 1));
-        }
-
-        return result;
-    }
+    public static byte GetExcellentByte(Item item) => item.GetExcellentOptionBits();
 
     /// <summary>
     /// Gets the Jewel of Harmony option byte for an item.

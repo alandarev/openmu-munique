@@ -127,7 +127,8 @@ public interface IPlayerContext : IContext
     ValueTask<int> GetActiveAuctionListingCountAsync(Guid sellerCharacterId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the identifiers of the auction house collection entries of a character, ordered by identifier.
+    /// Gets the identifiers of the auction house collection entries of a character, oldest first (by the time of
+    /// their last change, then by identifier).
     /// </summary>
     /// <param name="ownerCharacterId">The identifier of the owning character.</param>
     /// <param name="listingId">If set, only the entries which result from this listing.</param>
@@ -135,6 +136,23 @@ public interface IPlayerContext : IContext
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The identifiers of the entries.</returns>
     ValueTask<IReadOnlyList<Guid>> GetAuctionCollectionEntryIdsAsync(Guid ownerCharacterId, Guid? listingId = null, AuctionHouseCollectionEntryKind? kind = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets auction house collection entries with their items, without tracking them in this context.
+    /// </summary>
+    /// <param name="ids">The identifiers of the entries.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The entries which exist, in the order of the identifiers.</returns>
+    ValueTask<IReadOnlyList<AuctionCollectionEntry>> GetAuctionCollectionEntriesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the identifiers of active auction house listings whose duration ended, oldest expiry first.
+    /// </summary>
+    /// <param name="now">The current point in time (UTC).</param>
+    /// <param name="maximumCount">The maximum count of identifiers.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The identifiers of the due listings.</returns>
+    ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Runs an operation which changes entities of this context as one database transaction: the operation may lock

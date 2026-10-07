@@ -223,6 +223,42 @@ namespace MUnique.OpenMU.GameLogic.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Auction House - Expiry.
+        /// </summary>
+        public static string AuctionHouseExpiryPlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionHouseExpiryPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expires the auction house listings whose duration ended, at most every minute: their unsold units go into the collection of the seller, or to the inventory of a seller at a broker..
+        /// </summary>
+        public static string AuctionHouseExpiryPlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionHouseExpiryPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Login Notice.
+        /// </summary>
+        public static string AuctionHouseLoginNoticePlugIn_Name {
+            get {
+                return ResourceManager.GetString("AuctionHouseLoginNoticePlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tells a character which enters the game that auction house deliveries are waiting in its collection..
+        /// </summary>
+        public static string AuctionHouseLoginNoticePlugIn_Description {
+            get {
+                return ResourceManager.GetString("AuctionHouseLoginNoticePlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Closes the auction house broker of a player and sends its closed state when the NPC dialog ends (close request, warp, logout, disconnect) or the player gets a deadly hit..
         /// </summary>
         public static string AuctionBrokerClosingPlugIn_Description {
@@ -241,7 +277,7 @@ namespace MUnique.OpenMU.GameLogic.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The NPC auction house: its configuration are the market rules which the broker announces, and it provides the market behind the broker. Without a market, the broker opens with its rules and answers every request as unavailable..
+        ///   Looks up a localized string similar to The NPC auction house: its configuration are the market rules which the broker announces; the market behind the broker is shared by all game servers of the same game configuration. Without this feature, the broker opens with the default rules and answers every request as unavailable..
         /// </summary>
         public static string AuctionHouseFeaturePlugIn_Description {
             get {

@@ -30,6 +30,17 @@ public interface IPersistenceTransaction
         where T : class;
 
     /// <summary>
+    /// Like <see cref="LockAsync{T}"/>, but skips the rows which another transaction has locked, instead of waiting
+    /// for them (<c>SKIP LOCKED</c>).
+    /// </summary>
+    /// <typeparam name="T">The type of the entities.</typeparam>
+    /// <param name="ids">The identifiers of the entities.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The locked entities, ordered by their identifier; identifiers without a row or with a locked row are left out.</returns>
+    ValueTask<IReadOnlyList<T>> LockAvailableAsync<T>(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+        where T : class;
+
+    /// <summary>
     /// Detaches an entity with its aggregate members from the context when the transaction ends, like the locked
     /// entities; for entities which the operation created or loaded and which aren't part of the graph of the context's
     /// account, so that the context doesn't keep them.

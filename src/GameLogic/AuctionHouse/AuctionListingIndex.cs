@@ -96,6 +96,19 @@ public sealed class AuctionListingIndex
     }
 
     /// <summary>
+    /// Gets the active listings which match a predicate.
+    /// </summary>
+    /// <param name="predicate">The predicate.</param>
+    /// <returns>The matching listings, in no particular order.</returns>
+    public List<AuctionIndexedListing> Where(Func<AuctionIndexedListing, bool> predicate)
+    {
+        lock (this._syncRoot)
+        {
+            return this._listings.Values.Where(predicate).ToList();
+        }
+    }
+
+    /// <summary>
     /// Gets the active goods listings of an item type and level, without those of the excluded seller, in the order in
     /// which a purchase fills them: cheapest unit price first, then oldest (creation time, then id).
     /// </summary>
@@ -103,8 +116,9 @@ public sealed class AuctionListingIndex
     /// <param name="number">The number of the item definition.</param>
     /// <param name="level">The item level.</param>
     /// <param name="excludedSellerCharacterId">The identifier of the character whose listings are left out.</param>
+    /// <param name="now">The current point in time (UTC); listings which expired at that time are left out.</param>
     /// <returns>The listings in fill order.</returns>
-    public IReadOnlyList<AuctionIndexedListing> GetGoodsInFillOrder(byte group, short number, byte level, Guid excludedSellerCharacterId)
+    public IReadOnlyList<AuctionIndexedListing> GetGoodsInFillOrder(byte group, short number, byte level, Guid excludedSellerCharacterId, DateTime now)
     {
         List<AuctionIndexedListing> result;
         lock (this._syncRoot)
@@ -114,7 +128,8 @@ public sealed class AuctionListingIndex
                                   && listing.ItemGroup == group
                                   && listing.ItemNumber == number
                                   && listing.ItemLevel == level
-                                  && listing.SellerCharacterId != excludedSellerCharacterId)
+                                  && listing.SellerCharacterId != excludedSellerCharacterId
+                                  && listing.ExpiresAt > now)
                 .ToList();
         }
 

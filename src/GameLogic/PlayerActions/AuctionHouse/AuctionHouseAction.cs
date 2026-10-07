@@ -292,8 +292,7 @@ public class AuctionHouseAction
 
     private static AuctionHouseRules GetRules(Player player) => GetFeature(player)?.Configuration ?? AuctionHouseRules.Default;
 
-    private static IAuctionHouseMarket? GetMarket(Player player)
-        => GetFeature(player) is { } feature ? feature.Market ?? AuctionHouseMarkets.Get(player.GameContext) : null;
+    private static IAuctionHouseMarket? GetMarket(Player player) => AuctionHouseMarkets.GetMarket(player.GameContext);
 
     private static AuctionGoodsQuotation RefusedQuotation(AuctionHouseResult result, AuctionGoodsQuoteQuery query)
         => new(result, query.ItemType, query.Level, query.Quantity, 0, 0, []);

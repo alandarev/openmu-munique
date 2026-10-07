@@ -41,6 +41,12 @@ internal sealed class InMemoryTransaction : IPersistenceTransaction
     }
 
     /// <inheritdoc />
+    /// <remarks>All transactions of a provider are serialized, so no row is locked by another one.</remarks>
+    public ValueTask<IReadOnlyList<T>> LockAvailableAsync<T>(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+        where T : class
+        => this.LockAsync<T>(ids, cancellationToken);
+
+    /// <inheritdoc />
     /// <remarks>The in-memory contexts share their objects, so there is nothing to detach.</remarks>
     public void DetachWhenCompleted(object entity)
     {

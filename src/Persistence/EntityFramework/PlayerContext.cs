@@ -162,24 +162,28 @@ internal class PlayerContext : CachingEntityFrameworkContext, IPlayerContext
                 .ConfigureAwait(false);
         }
 
-        var result = new System.Collections.Generic.List<DataModel.Entities.AuctionListing>(ids.Count);
-        await this.Context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            foreach (var id in ids)
-            {
-                if (await this.LoadAggregateAsync(typeof(AuctionListing), id, cancellationToken).ConfigureAwait(false) is AuctionListing listing)
-                {
-                    result.Add(listing);
-                }
-            }
-        }
-        finally
-        {
-            await this.Context.Database.CloseConnectionAsync().ConfigureAwait(false);
-        }
+        return await this.LoadAggregatesAsync<DataModel.Entities.AuctionListing>(typeof(AuctionListing), ids, cancellationToken).ConfigureAwait(false);
+    }
 
-        return result;
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionCollectionEntry>> GetAuctionCollectionEntriesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        return await this.LoadAggregatesAsync<DataModel.Entities.AuctionCollectionEntry>(typeof(AuctionCollectionEntry), ids, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default)
+    {
+        using (this.RepositoryProvider.ContextStack.UseContext(this))
+        {
+            return await this.Context.Set<AuctionListing>()
+                .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active && listing.ExpiresAt <= now)
+                .OrderBy(listing => listing.ExpiresAt)
+                .Select(listing => listing.Id)
+                .Take(maximumCount)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc />
@@ -209,7 +213,30 @@ internal class PlayerContext : CachingEntityFrameworkContext, IPlayerContext
                 query = query.Where(entry => entry.Kind == entryKind);
             }
 
-            return await query.OrderBy(entry => entry.Id).Select(entry => entry.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+            return await query.OrderBy(entry => entry.UpdatedAt).ThenBy(entry => entry.Id).Select(entry => entry.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private async ValueTask<IReadOnlyList<T>> LoadAggregatesAsync<T>(Type modelType, IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
+        where T : class
+    {
+        var result = new System.Collections.Generic.List<T>(ids.Count);
+        await this.Context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            foreach (var id in ids)
+            {
+                if (await this.LoadAggregateAsync(modelType, id, cancellationToken).ConfigureAwait(false) is T aggregate)
+                {
+                    result.Add(aggregate);
+                }
+            }
+        }
+        finally
+        {
+            await this.Context.Database.CloseConnectionAsync().ConfigureAwait(false);
+        }
+
+        return result;
     }
 }

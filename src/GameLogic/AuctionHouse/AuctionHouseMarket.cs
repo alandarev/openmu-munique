@@ -27,7 +27,11 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     private readonly ILogger<AuctionHouseMarket> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
+    private readonly AuctionMarketReader _reader;
+    private readonly AuctionSellerDelivery _delivery;
     private volatile bool _isIndexLoaded;
+    private int _isExpiryRunning;
+    private DateTime _nextExpiryRun;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuctionHouseMarket"/> class.
@@ -42,7 +46,19 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         this._gameConfiguration = gameConfiguration;
         this._logger = logger;
         this._timeProvider = timeProvider ?? TimeProvider.System;
+        this._reader = new AuctionMarketReader(this.Index, () => this.Now);
+        this._delivery = new AuctionSellerDelivery(logger);
     }
+
+    /// <summary>
+    /// Gets the minimum time between two runs of <see cref="ExpireDueListingsAsync"/>.
+    /// </summary>
+    public static TimeSpan ExpiryInterval { get; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Gets the maximum count of listings which expire in one transaction.
+    /// </summary>
+    public static int ExpiryBatchSize { get; } = 100;
 
     /// <summary>
     /// Gets the index of the active listings. It is loaded from the database at the first use of the market.
@@ -66,36 +82,24 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     }
 
     /// <inheritdoc />
-    /// <remarks>Served by the index in task 2.4 of the market; until then the search is unavailable.</remarks>
-    public ValueTask<AuctionSearchPage> SearchAsync(Player player, AuctionSearchQuery query)
-        => ValueTask.FromResult(new AuctionSearchPage(AuctionHouseResult.Unavailable, query.Page, 0, []));
+    public async ValueTask<AuctionSearchPage> SearchAsync(Player player, AuctionSearchQuery query)
+    {
+        await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
+        return this._reader.Search(player, query, GetRules(player).PageSize);
+    }
 
     /// <inheritdoc />
-    /// <remarks>Served by the index in task 2.4 of the market; until then the goods list is unavailable.</remarks>
-    public ValueTask<AuctionGoodsPage> GetGoodsListAsync(Player player, AuctionGoodsListQuery query)
-        => ValueTask.FromResult(new AuctionGoodsPage(AuctionHouseResult.Unavailable, query.Page, 0, []));
+    public async ValueTask<AuctionGoodsPage> GetGoodsListAsync(Player player, AuctionGoodsListQuery query)
+    {
+        await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
+        return this._reader.GetGoodsList(player, query, GetRules(player).PageSize);
+    }
 
     /// <inheritdoc />
     public async ValueTask<AuctionGoodsQuotation> QuoteGoodsAsync(Player player, AuctionGoodsQuoteQuery query)
     {
-        var character = player.SelectedCharacter ?? throw new InvalidOperationException("The player has no selected character.");
         await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
-        var (group, number) = AuctionHouseItemTypes.Split(query.ItemType);
-        var candidates = this.Index.GetGoodsInFillOrder(group, number, query.Level, character.GetId());
-        var fill = AuctionGoodsFill.Create(candidates, query.Quantity);
-        var tiers = candidates
-            .GroupBy(listing => listing.UnitPrice)
-            .OrderBy(tier => tier.Key)
-            .Take(8)
-            .Select(tier => new AuctionPriceTier(tier.Key, (uint)Math.Min(uint.MaxValue, tier.Sum(listing => (long)listing.RemainingQuantity))))
-            .ToList();
-        if (fill.Total > GetMaximumPrice(player))
-        {
-            return new AuctionGoodsQuotation(AuctionHouseResult.PriceOutOfRange, query.ItemType, query.Level, query.Quantity, fill.Quantity, 0, tiers);
-        }
-
-        var result = fill.Quantity >= query.Quantity ? AuctionHouseResult.Success : AuctionHouseResult.InsufficientStock;
-        return new AuctionGoodsQuotation(result, query.ItemType, query.Level, query.Quantity, fill.Quantity, (uint)fill.Total, tiers);
+        return this._reader.Quote(player, query, GetMaximumPrice(player));
     }
 
     /// <inheritdoc />
@@ -110,11 +114,16 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
         AuctionListing? lockedListing = null;
         AuctionCollectionClaim? claim = null;
+        AuctionSellerDeliveryOrder? delivery = null;
         var outcome = await RunTransactionAsync(player, async transaction =>
         {
             var listing = (await transaction.LockAsync<AuctionListing>([order.ListingId]).ConfigureAwait(false)).FirstOrDefault();
             lockedListing = listing;
-            if (listing is null || listing.State != AuctionListingState.Active || listing.Kind != AuctionHouseListingKind.Item || listing.RemainingQuantity <= 0)
+            if (listing is null
+                || listing.State != AuctionListingState.Active
+                || listing.Kind != AuctionHouseListingKind.Item
+                || listing.RemainingQuantity <= 0
+                || AuctionHouseTimes.ToUtc(listing.ExpiresAt) <= this.Now)
             {
                 return Refused(AuctionHouseResult.NotFound, order.ListingId);
             }
@@ -139,7 +148,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             var now = this.Now;
             Pay(transaction, wallet, price);
             var purchase = CreateEntry(player.PersistenceContext, transaction, AuctionHouseCollectionEntryKind.Purchase, characterId, listing, now, true);
-            await SettleSaleAsync(player, transaction, rules, listing, 1, purchase, now).ConfigureAwait(false);
+            delivery = await SettleSaleAsync(player, transaction, rules, listing, 1, purchase, now).ConfigureAwait(false);
             purchase.Quantity = 1;
 
             claim = new AuctionCollectionClaim(player, transaction);
@@ -165,6 +174,11 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             await claim.ShowChangesAsync().ConfigureAwait(false);
         }
 
+        if (delivery is not null)
+        {
+            this.StartDeliveries([delivery]);
+        }
+
         return outcome;
     }
 
@@ -180,7 +194,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         var (group, number) = AuctionHouseItemTypes.Split(order.ItemType);
         await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
 
-        var fill = AuctionGoodsFill.Create(this.Index.GetGoodsInFillOrder(group, number, order.Level, characterId), order.Quantity);
+        var fill = AuctionGoodsFill.Create(this.Index.GetGoodsInFillOrder(group, number, order.Level, characterId, this.Now), order.Quantity);
         if (fill.Quantity < order.Quantity)
         {
             return Refused(AuctionHouseResult.InsufficientStock);
@@ -197,10 +211,12 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         }
 
         IReadOnlyList<AuctionListing> lockedListings = [];
+        var deliveries = new List<AuctionSellerDeliveryOrder>();
         AuctionCollectionClaim? claim = null;
         var staleIndex = false;
         var outcome = await RunTransactionAsync(player, async transaction =>
         {
+            var now = this.Now;
             lockedListings = await transaction.LockAsync<AuctionListing>(fill.Parts.Select(part => part.Listing.Id)).ConfigureAwait(false);
             var available = lockedListings
                 .Where(listing => listing.State == AuctionListingState.Active
@@ -209,7 +225,8 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                                   && listing.ItemNumber == number
                                   && listing.ItemLevel == order.Level
                                   && listing.SellerCharacterId != characterId
-                                  && listing.RemainingQuantity > 0)
+                                  && listing.RemainingQuantity > 0
+                                  && AuctionHouseTimes.ToUtc(listing.ExpiresAt) > now)
                 .Select(AuctionIndexedListing.Of);
             var lockedFill = AuctionGoodsFill.Create(available, order.Quantity);
             if (lockedFill.Quantity < order.Quantity)
@@ -235,14 +252,13 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                 return Refused(AuctionHouseResult.InsufficientZen);
             }
 
-            var now = this.Now;
             Pay(transaction, wallet, total);
             var firstListing = lockedListings.First(listing => listing.GetId() == lockedFill.Parts[0].Listing.Id);
             var purchase = CreateEntry(player.PersistenceContext, transaction, AuctionHouseCollectionEntryKind.Purchase, characterId, firstListing, now, true);
             foreach (var (part, units) in lockedFill.Parts)
             {
                 var listing = lockedListings.First(l => l.GetId() == part.Id);
-                await SettleSaleAsync(player, transaction, rules, listing, (int)units, purchase, now).ConfigureAwait(false);
+                deliveries.Add(await SettleSaleAsync(player, transaction, rules, listing, (int)units, purchase, now).ConfigureAwait(false));
             }
 
             purchase.Quantity = (int)order.Quantity;
@@ -271,11 +287,16 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             await claim.ShowChangesAsync().ConfigureAwait(false);
         }
 
+        if (outcome.Result == AuctionHouseResult.Success)
+        {
+            this.StartDeliveries(deliveries);
+        }
+
         if (staleIndex)
         {
             // The index promised more than the locked rows hold; now it is updated, so it tells whether a fresh quote
             // can fill the quantity at another total.
-            var freshFill = AuctionGoodsFill.Create(this.Index.GetGoodsInFillOrder(group, number, order.Level, characterId), order.Quantity);
+            var freshFill = AuctionGoodsFill.Create(this.Index.GetGoodsInFillOrder(group, number, order.Level, characterId, this.Now), order.Quantity);
             return Refused(freshFill.Quantity < order.Quantity ? AuctionHouseResult.InsufficientStock : AuctionHouseResult.QuoteChanged);
         }
 
@@ -304,7 +325,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             if (kind == AuctionHouseListingKind.Goods)
             {
                 available = (uint)GetGoodsUnits(player, rules, item).Count;
-                lowestUnitPrice = this.Index.GetGoodsInFillOrder(definition.Group, definition.Number, item.Level, characterId).FirstOrDefault()?.UnitPrice ?? 0;
+                lowestUnitPrice = this.Index.GetGoodsInFillOrder(definition.Group, definition.Number, item.Level, characterId, this.Now).FirstOrDefault()?.UnitPrice ?? 0;
             }
             else
             {
@@ -500,14 +521,15 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     }
 
     /// <inheritdoc />
-    /// <remarks>Served by the index in task 2.4 of the market; until then the own listings are unavailable.</remarks>
-    public ValueTask<AuctionOwnListingList> GetOwnListingsAsync(Player player)
-        => ValueTask.FromResult(new AuctionOwnListingList(AuctionHouseResult.Unavailable, []));
+    public async ValueTask<AuctionOwnListingList> GetOwnListingsAsync(Player player)
+    {
+        await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
+        return this._reader.GetOwnListings(player);
+    }
 
     /// <inheritdoc />
-    /// <remarks>Served in task 2.4 of the market; until then the collection list is unavailable.</remarks>
     public ValueTask<AuctionCollectionPage> GetCollectionAsync(Player player, AuctionCollectionQuery query)
-        => ValueTask.FromResult(new AuctionCollectionPage(AuctionHouseResult.Unavailable, query.Page, 0, []));
+        => this._reader.GetCollectionAsync(player, query, GetRules(player));
 
     /// <inheritdoc />
     public async ValueTask<AuctionClaimOutcome> ClaimAsync(Player player, AuctionClaimOrder order)
@@ -521,8 +543,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             var allEntryIds = await player.PersistenceContext.GetAuctionCollectionEntryIdsAsync(characterId).ConfigureAwait(false);
             var entries = (await transaction.LockAsync<AuctionCollectionEntry>(order.EntryId is { } entryId ? [entryId] : allEntryIds).ConfigureAwait(false))
                 .Where(entry => entry.OwnerCharacterId == characterId)
-                .OrderBy(entry => entry.UpdatedAt)
-                .ThenBy(entry => entry.GetId())
+                .OrderBy(entry => entry.GetId())
                 .ToList();
             if (order.EntryId is not null && entries.Count == 0)
             {
@@ -552,6 +573,91 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         }
 
         return outcome;
+    }
+
+    /// <summary>
+    /// Registers a game context whose players use this market, so that sellers among its players receive their
+    /// deliveries and notices.
+    /// </summary>
+    /// <param name="gameContext">The game context.</param>
+    public void RegisterGameContext(IGameContext gameContext) => this._delivery.RegisterGameContext(gameContext);
+
+    /// <summary>
+    /// Waits until the deliveries to sellers which were started so far are completed.
+    /// </summary>
+    /// <returns>The task.</returns>
+    public Task WaitForPendingDeliveriesAsync() => this._delivery.WaitForPendingDeliveriesAsync();
+
+    /// <summary>
+    /// Expires the active listings whose duration ended: their unsold units go into an "expired" collection entry of
+    /// the seller, which is delivered like proceeds. Runs at most every <see cref="ExpiryInterval"/>, unless forced,
+    /// and never overlaps with another run of this market.
+    /// </summary>
+    /// <remarks>
+    /// Each batch runs as one transaction in a context of the market. Due listings are locked with
+    /// <see cref="IPersistenceTransaction.LockAvailableAsync{T}"/>, so a listing which a purchase holds is skipped and
+    /// expired by a later run, if it's still active then; the state is checked after locking, so a listing is expired
+    /// once, also by several markets on the same database.
+    /// </remarks>
+    /// <param name="force">If set to <see langword="true"/>, the interval is ignored.</param>
+    /// <returns>The count of expired listings.</returns>
+    public async ValueTask<int> ExpireDueListingsAsync(bool force = false)
+    {
+        var now = this.Now;
+        if ((!force && now < this._nextExpiryRun) || Interlocked.CompareExchange(ref this._isExpiryRunning, 1, 0) != 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            this._nextExpiryRun = now + ExpiryInterval;
+            await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
+            using var context = this._persistenceContextProvider.CreateNewPlayerContext(this._gameConfiguration);
+            var expiredCount = 0;
+            while (true)
+            {
+                var dueIds = await context.GetDueAuctionListingIdsAsync(now, ExpiryBatchSize).ConfigureAwait(false);
+                if (dueIds.Count == 0)
+                {
+                    break;
+                }
+
+                var (lockedListings, deliveries) = await ExpireAsync(context, dueIds, now).ConfigureAwait(false);
+                expiredCount += deliveries.Count;
+
+                // The batch is committed: what follows must not turn it into a failure.
+                try
+                {
+                    foreach (var listing in lockedListings)
+                    {
+                        this.Index.Apply(listing);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex, "Error while updating the auction house index after an expiry.");
+                }
+
+                this.StartDeliveries(deliveries);
+                if (dueIds.Count < ExpiryBatchSize || deliveries.Count == 0)
+                {
+                    // Fewer due listings than a batch, or all were locked by purchases: a later run handles the rest.
+                    break;
+                }
+            }
+
+            if (expiredCount > 0)
+            {
+                this._logger.LogInformation("{count} auction listings expired.", expiredCount);
+            }
+
+            return expiredCount;
+        }
+        finally
+        {
+            Volatile.Write(ref this._isExpiryRunning, 0);
+        }
     }
 
     /// <summary>
@@ -678,6 +784,45 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         transaction.OnRollback(() => wallet.Money += (int)amount);
     }
 
+    private static async ValueTask<(IReadOnlyList<AuctionListing> Listings, List<AuctionSellerDeliveryOrder> Deliveries)> ExpireAsync(IPlayerContext context, IReadOnlyList<Guid> dueIds, DateTime now)
+    {
+        IReadOnlyList<AuctionListing> lockedListings = [];
+        var deliveries = new List<AuctionSellerDeliveryOrder>();
+        await context.RunInTransactionAsync(async transaction =>
+        {
+            lockedListings = await transaction.LockAvailableAsync<AuctionListing>(dueIds).ConfigureAwait(false);
+            foreach (var listing in lockedListings.Where(listing => listing.State == AuctionListingState.Active && AuctionHouseTimes.ToUtc(listing.ExpiresAt) <= now))
+            {
+                var remaining = listing.RemainingQuantity;
+                listing.State = AuctionListingState.Expired;
+                listing.RemainingQuantity = 0;
+                transaction.OnRollback(() =>
+                {
+                    listing.RemainingQuantity = remaining;
+                    listing.State = AuctionListingState.Active;
+                });
+
+                var entry = CreateEntry(context, transaction, AuctionHouseCollectionEntryKind.Expired, listing.SellerCharacterId, listing, now, true);
+                MoveItems(transaction, listing.Escrow!, entry.Escrow!, listing.Escrow!.Items.Count);
+                entry.Quantity = remaining;
+                deliveries.Add(new AuctionSellerDeliveryOrder(
+                    listing.SellerCharacterId,
+                    listing.SellerName,
+                    entry.GetId(),
+                    AuctionHouseNoticeKind.ExpiredToInventory,
+                    AuctionHouseNoticeKind.Expired,
+                    AuctionHouseItemTypes.GetItemType(listing.ItemGroup, listing.ItemNumber),
+                    listing.ItemLevel,
+                    (uint)remaining,
+                    0));
+            }
+
+            return true;
+        }).ConfigureAwait(false);
+
+        return (lockedListings, deliveries);
+    }
+
     private static uint GetMaximumPrice(Player player)
         => AuctionBrokerState.Create(GetRules(player), player.GameContext.Configuration.MaximumInventoryMoney, AuctionSellerSummary.None).MaximumPrice;
 
@@ -688,7 +833,8 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     /// Sells units of a locked listing into the buyer's purchase entry: moves the items, reduces the listing,
     /// accumulates the proceeds in the seller's proceeds entry and records the sale.
     /// </summary>
-    private static async ValueTask SettleSaleAsync(Player buyer, IPersistenceTransaction transaction, AuctionHouseRules rules, AuctionListing listing, int units, AuctionCollectionEntry purchase, DateTime now)
+    /// <returns>The delivery of the proceeds to the seller, to start after the commit.</returns>
+    private static async ValueTask<AuctionSellerDeliveryOrder> SettleSaleAsync(Player buyer, IPersistenceTransaction transaction, AuctionHouseRules rules, AuctionListing listing, int units, AuctionCollectionEntry purchase, DateTime now)
     {
         var context = buyer.PersistenceContext;
         MoveItems(transaction, listing.Escrow!, purchase.Escrow!, units);
@@ -753,5 +899,36 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         sale.BuyerName = buyerCharacter.Name;
         sale.Gross = gross;
         sale.Fee = fee;
+
+        return new AuctionSellerDeliveryOrder(
+            listing.SellerCharacterId,
+            listing.SellerName,
+            proceedsEntry.GetId(),
+            AuctionHouseNoticeKind.SoldToInventory,
+            AuctionHouseNoticeKind.Sold,
+            AuctionHouseItemTypes.GetItemType(listing.ItemGroup, listing.ItemNumber),
+            listing.ItemLevel,
+            (uint)units,
+            gross - fee);
+    }
+
+    /// <summary>
+    /// Starts the deliveries to sellers of a committed operation; a failure is logged, never thrown, because the
+    /// operation is committed already.
+    /// </summary>
+    /// <param name="deliveries">The deliveries.</param>
+    private void StartDeliveries(IEnumerable<AuctionSellerDeliveryOrder> deliveries)
+    {
+        foreach (var delivery in deliveries)
+        {
+            try
+            {
+                this._delivery.Start(delivery);
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogError(ex, "Error while starting the delivery of the auction house collection entry {entry} to {seller}.", delivery.EntryId, delivery.CharacterName);
+            }
+        }
     }
 }

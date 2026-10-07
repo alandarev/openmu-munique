@@ -142,6 +142,11 @@ public class AuctionHouseMarketPostgreSqlTest
         await restartedMarket.EnsureIndexLoadedAsync().ConfigureAwait(false);
         AssertItemState(restartedMarket.Index.Get(created.ListingId)?.Item);
 
+        // Loaded rows come back as local times; the index holds UTC.
+        var expiresAt = restartedMarket.Index.Get(created.ListingId)!.ExpiresAt;
+        Assert.That(expiresAt.Kind, Is.EqualTo(DateTimeKind.Utc));
+        Assert.That(expiresAt - DateTime.UtcNow, Is.EqualTo(TimeSpan.FromHours(48)).Within(TimeSpan.FromMinutes(1)));
+
         var bought = await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false);
         Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
         Assert.That(bought.Delivery, Is.EqualTo(AuctionHouseDelivery.Inventory));
@@ -315,6 +320,77 @@ public class AuctionHouseMarketPostgreSqlTest
         Assert.That(await this.GetDatabaseMoneyAsync(seller).ConfigureAwait(false), Is.EqualTo(100_000_000 - 300_000 + 3_600_000));
     }
 
+    /// <summary>
+    /// A purchase racing the expiry of the same listing: exactly one of them takes it, and the database is consistent.
+    /// </summary>
+    [Test]
+    public async Task PurchaseRacingExpiryHasOneOutcomeAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._kris, 1)).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 50_000_000).ConfigureAwait(false);
+        var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
+        var expiryMarket = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), new ShiftedTimeProvider(TimeSpan.FromHours(49)));
+        await expiryMarket.EnsureIndexLoadedAsync().ConfigureAwait(false);
+
+        var buying = Task.Run(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false));
+        var expiring = Task.Run(async () => await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false));
+        var bought = await buying.ConfigureAwait(false);
+        var expired = await expiring.ConfigureAwait(false);
+
+        Assert.That(bought.Result == AuctionHouseResult.Success ^ expired == 1, Is.True, $"bought {bought.Result}, expired {expired}");
+        Assert.That(bought.Result, Is.AnyOf(AuctionHouseResult.Success, AuctionHouseResult.NotFound));
+        await using var data = this._database.CreateDataContext();
+        var listing = await data.Set<EfModel.AuctionListing>().SingleAsync().ConfigureAwait(false);
+        var entries = await data.Set<EfModel.AuctionCollectionEntry>().ToListAsync().ConfigureAwait(false);
+        if (bought.Result == AuctionHouseResult.Success)
+        {
+            Assert.That(listing.State, Is.EqualTo(AuctionListingState.SoldOut));
+            Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(40_000_000));
+            Assert.That(entries.Select(entry => entry.Kind), Is.EqualTo(new[] { AuctionHouseCollectionEntryKind.Proceeds }));
+        }
+        else
+        {
+            Assert.That(listing.State, Is.EqualTo(AuctionListingState.Expired));
+            Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(50_000_000));
+            Assert.That(entries.Select(entry => entry.Kind), Is.EqualTo(new[] { AuctionHouseCollectionEntryKind.Expired }));
+            Assert.That(await data.Set<EfModel.Item>().CountAsync(item => item.ItemStorageId == entries[0].EscrowId).ConfigureAwait(false), Is.EqualTo(1));
+        }
+
+        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+    }
+
+    /// <summary>
+    /// Two expiry runs of different markets (processes) at the same time expire every due listing exactly once.
+    /// </summary>
+    [Test]
+    public async Task ConcurrentExpiryRunsExpireEachListingOnceAsync()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            var seller = await this.CreatePlayerAsync("seller" + i, 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 2)).ConfigureAwait(false);
+            var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 2, 1_000_000, 48, 0)).ConfigureAwait(false);
+            Assert.That(created.Result, Is.EqualTo(AuctionHouseResult.Success));
+        }
+
+        var later = new ShiftedTimeProvider(TimeSpan.FromHours(49));
+
+        var first = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later);
+        var second = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later);
+
+        var counts = await Task.WhenAll(
+            Task.Run(async () => await first.ExpireDueListingsAsync(true).ConfigureAwait(false)),
+            Task.Run(async () => await second.ExpireDueListingsAsync(true).ConfigureAwait(false))).ConfigureAwait(false);
+        var rest = await first.ExpireDueListingsAsync(true).ConfigureAwait(false) + await second.ExpireDueListingsAsync(true).ConfigureAwait(false);
+
+        Assert.That(counts.Sum() + rest, Is.EqualTo(3));
+        await using var data = this._database.CreateDataContext();
+        Assert.That(await data.Set<EfModel.AuctionListing>().CountAsync(listing => listing.State == AuctionListingState.Expired).ConfigureAwait(false), Is.EqualTo(3));
+        var entries = await data.Set<EfModel.AuctionCollectionEntry>().ToListAsync().ConfigureAwait(false);
+        Assert.That(entries, Has.Count.EqualTo(3));
+        Assert.That(entries.Sum(entry => entry.Quantity), Is.EqualTo(6));
+        Assert.That(entries.Select(entry => entry.OwnerCharacterId).Distinct().Count(), Is.EqualTo(3));
+    }
+
     private static void AssertItemState(Item? item)
     {
         Assert.That(item, Is.Not.Null);
@@ -407,5 +483,13 @@ public class AuctionHouseMarketPostgreSqlTest
     {
         await using var data = this._database.CreateDataContext();
         await data.Database.ExecuteSqlRawAsync(sql).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A time provider which is ahead of the system time by a fixed span.
+    /// </summary>
+    private sealed class ShiftedTimeProvider(TimeSpan shift) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => TimeProvider.System.GetUtcNow() + shift;
     }
 }

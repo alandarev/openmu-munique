@@ -1312,12 +1312,24 @@
     <value>Auction House</value>
   </data>
   <data name="AuctionHouseFeaturePlugIn_Description" xml:space="preserve">
-    <value>The NPC auction house: its configuration are the market rules which the broker announces, and it provides the market behind the broker. Without a market, the broker opens with its rules and answers every request as unavailable.</value>
+    <value>The NPC auction house: its configuration are the market rules which the broker announces; the market behind the broker is shared by all game servers of the same game configuration. Without this feature, the broker opens with the default rules and answers every request as unavailable.</value>
   </data>
   <data name="AuctionBrokerClosingPlugIn_Name" xml:space="preserve">
     <value>Auction House - Broker Closing</value>
   </data>
   <data name="AuctionBrokerClosingPlugIn_Description" xml:space="preserve">
     <value>Closes the auction house broker of a player and sends its closed state when the NPC dialog ends (close request, warp, logout, disconnect) or the player gets a deadly hit.</value>
+  </data>
+  <data name="AuctionHouseExpiryPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Expiry</value>
+  </data>
+  <data name="AuctionHouseExpiryPlugIn_Description" xml:space="preserve">
+    <value>Expires the auction house listings whose duration ended, at most every minute: their unsold units go into the collection of the seller, or to the inventory of a seller at a broker.</value>
+  </data>
+  <data name="AuctionHouseLoginNoticePlugIn_Name" xml:space="preserve">
+    <value>Auction House - Login Notice</value>
+  </data>
+  <data name="AuctionHouseLoginNoticePlugIn_Description" xml:space="preserve">
+    <value>Tells a character which enters the game that auction house deliveries are waiting in its collection.</value>
   </data>
 </root>
