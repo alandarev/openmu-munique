@@ -196,6 +196,12 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
         await this.Provider.TransactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            // Checked again under the lock: a transaction which held it may have quarantined the context meanwhile.
+            if (this.IsQuarantined)
+            {
+                throw new InvalidOperationException("A quarantined context refuses transactions.");
+            }
+
             var transaction = new InMemoryTransaction(this);
             this.CreatedObjects = [];
             try

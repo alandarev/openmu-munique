@@ -81,4 +81,41 @@ public class InMemoryPlayerContextTransactionTest
         Assert.That(await check.GetByIdAsync<AuctionListing>(createdId).ConfigureAwait(false), Is.Null);
         Assert.That(await check.GetAsync<ItemStorage>().ConfigureAwait(false), Is.Empty);
     }
+
+    /// <summary>
+    /// A transaction which is queued behind another one is refused when its context got quarantined meanwhile; the
+    /// synchronous save is refused too.
+    /// </summary>
+    [Test]
+    public async Task QueuedTransactionOfQuarantinedContextIsRefusedAsync()
+    {
+        var provider = new InMemoryPersistenceContextProvider();
+        using var holder = provider.CreateNewPlayerContext(new Persistence.BasicModel.GameConfiguration());
+        using var queued = (PlayerInMemoryContext)provider.CreateNewPlayerContext(new Persistence.BasicModel.GameConfiguration());
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queuedRan = false;
+
+        var holding = holder.RunInTransactionAsync(async _ =>
+        {
+            entered.SetResult();
+            await release.Task.ConfigureAwait(false);
+            return true;
+        }).AsTask();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        var queuedTransaction = queued.RunInTransactionAsync(_ =>
+        {
+            queuedRan = true;
+            return ValueTask.FromResult(true);
+        }).AsTask();
+        Assert.That(queuedTransaction.IsCompleted, Is.False, "the transaction waits for the transaction lock");
+        queued.Quarantine();
+        release.SetResult();
+
+        Assert.That(await holding.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false), Is.True);
+        Assert.That(async () => await queuedTransaction.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false), Throws.InvalidOperationException);
+        Assert.That(queuedRan, Is.False);
+        Assert.That(queued.SaveChanges(), Is.False);
+        Assert.That(await queued.SaveChangesAsync().ConfigureAwait(false), Is.False);
+    }
 }

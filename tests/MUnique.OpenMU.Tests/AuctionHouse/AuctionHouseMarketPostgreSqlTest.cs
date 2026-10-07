@@ -27,6 +27,11 @@ public class AuctionHouseMarketPostgreSqlTest
 {
     private const byte Slot = AuctionHouseMarketTestHelper.FirstInventorySlot;
 
+    /// <summary>
+    /// The longest time a test waits for a barrier or a task before it fails.
+    /// </summary>
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+
     private PostgreSqlTestDatabase _database = null!;
     private GameConfiguration _configuration = null!;
     private ItemDefinition _kris = null!;
@@ -188,7 +193,7 @@ public class AuctionHouseMarketPostgreSqlTest
             Task.Run(async () => await this._market.BuyListingAsync(second, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false)));
         await barrier.WaitForWaitersAsync(2).ConfigureAwait(false);
         await barrier.ReleaseAsync().ConfigureAwait(false);
-        var outcomes = await buying.ConfigureAwait(false);
+        var outcomes = await buying.WaitAsync(Timeout).ConfigureAwait(false);
 
         Assert.That(outcomes.Select(outcome => outcome.Result), Is.EquivalentTo(new[] { AuctionHouseResult.Success, AuctionHouseResult.NotFound }));
         var (winner, loser) = outcomes[0].Result == AuctionHouseResult.Success ? (first, second) : (second, first);
@@ -224,7 +229,7 @@ public class AuctionHouseMarketPostgreSqlTest
             Task.Run(async () => await this._market.BuyGoodsAsync(second, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 8, 20_000_000)).ConfigureAwait(false)));
         await barrier.WaitForWaitersAsync(2).ConfigureAwait(false);
         await barrier.ReleaseAsync().ConfigureAwait(false);
-        var outcomes = await buying.ConfigureAwait(false);
+        var outcomes = await buying.WaitAsync(Timeout).ConfigureAwait(false);
 
         // Both buyers chose the cheap listing from the index. The fill comes from the locked rows priced up to that
         // choice: the first one takes 8 cheap units, the later one finds only 2 left at that price and is answered
@@ -345,22 +350,22 @@ public class AuctionHouseMarketPostgreSqlTest
     public async Task PurchaseHoldingRowBeforeExpiryWinsAsync()
     {
         var (buyer, listingId, expiryMarket) = await this.PrepareRaceAsync().ConfigureAwait(false);
-        var paused = new TaskCompletionSource();
-        var release = new TaskCompletionSource();
+        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         ((Persistence.EntityFramework.EntityFrameworkContextBase)buyer.PersistenceContext).CommitFaultInjection = async isCommitted =>
         {
             if (!isCommitted)
             {
                 paused.SetResult();
-                await release.Task.ConfigureAwait(false);
+                await release.Task.WaitAsync(Timeout).ConfigureAwait(false);
             }
         };
 
         var buying = Task.Run(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(listingId, 10_000_000)).ConfigureAwait(false));
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        await paused.Task.WaitAsync(Timeout).ConfigureAwait(false);
         var expiredWhileHeld = await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false);
         release.SetResult();
-        var bought = await buying.ConfigureAwait(false);
+        var bought = await buying.WaitAsync(Timeout).ConfigureAwait(false);
         var expiredAfter = await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false);
 
         Assert.That(expiredWhileHeld, Is.Zero, "the expiry overlapped the purchase and skipped its row");
@@ -378,21 +383,21 @@ public class AuctionHouseMarketPostgreSqlTest
     public async Task ExpiryHoldingRowBeforePurchaseWinsAsync()
     {
         var (buyer, listingId, expiryMarket) = await this.PrepareRaceAsync().ConfigureAwait(false);
-        var paused = new TaskCompletionSource();
-        var release = new TaskCompletionSource();
+        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         expiryMarket.AfterExpiryBatchLocked = async () =>
         {
             paused.TrySetResult();
-            await release.Task.ConfigureAwait(false);
+            await release.Task.WaitAsync(Timeout).ConfigureAwait(false);
         };
 
         var expiring = Task.Run(async () => await expiryMarket.ExpireDueListingsAsync(true).ConfigureAwait(false));
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        await paused.Task.WaitAsync(Timeout).ConfigureAwait(false);
         var buying = Task.Run(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(listingId, 10_000_000)).ConfigureAwait(false));
         await RowLockBarrier.WaitForLockWaitersAsync(this._database, 1).ConfigureAwait(false);
         release.SetResult();
-        var expired = await expiring.ConfigureAwait(false);
-        var bought = await buying.ConfigureAwait(false);
+        var expired = await expiring.WaitAsync(Timeout).ConfigureAwait(false);
+        var bought = await buying.WaitAsync(Timeout).ConfigureAwait(false);
 
         Assert.That(expired, Is.EqualTo(1));
         Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.NotFound));
@@ -416,21 +421,21 @@ public class AuctionHouseMarketPostgreSqlTest
         var later = new ShiftedTimeProvider(TimeSpan.FromHours(49));
         var first = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later) { ExpiryBatchSize = 2 };
         var second = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>(), later);
-        var paused = new TaskCompletionSource();
-        var release = new TaskCompletionSource();
+        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         first.AfterExpiryBatchLocked = async () =>
         {
             if (paused.TrySetResult())
             {
-                await release.Task.ConfigureAwait(false);
+                await release.Task.WaitAsync(Timeout).ConfigureAwait(false);
             }
         };
 
         var firstRun = Task.Run(async () => await first.ExpireDueListingsAsync(true).ConfigureAwait(false));
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        await paused.Task.WaitAsync(Timeout).ConfigureAwait(false);
         var secondCount = await second.ExpireDueListingsAsync(true).ConfigureAwait(false);
         release.SetResult();
-        var firstCount = await firstRun.ConfigureAwait(false);
+        var firstCount = await firstRun.WaitAsync(Timeout).ConfigureAwait(false);
 
         Assert.That(secondCount, Is.EqualTo(1), "the second run overlapped the first and skipped its two held listings");
         Assert.That(firstCount, Is.EqualTo(2));
@@ -487,7 +492,7 @@ public class AuctionHouseMarketPostgreSqlTest
         await barrier.WaitForWaitersAsync(1).ConfigureAwait(false);
         time.Advance(TimeSpan.FromSeconds(2));
         await barrier.ReleaseAsync().ConfigureAwait(false);
-        var bought = await buying.ConfigureAwait(false);
+        var bought = await buying.WaitAsync(Timeout).ConfigureAwait(false);
 
         Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.InsufficientStock));
         Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(100_000_000));
@@ -530,14 +535,14 @@ public class AuctionHouseMarketPostgreSqlTest
     {
         var buyer = await this.CreatePlayerAsync("buyer", 50_000_000).ConfigureAwait(false);
         var context = (Persistence.EntityFramework.EntityFrameworkContextBase)buyer.PersistenceContext;
-        var paused = new TaskCompletionSource();
-        var release = new TaskCompletionSource();
+        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         context.CommitFaultInjection = async isCommitted =>
         {
             if (isCommitted)
             {
                 paused.SetResult();
-                await release.Task.ConfigureAwait(false);
+                await release.Task.WaitAsync(Timeout).ConfigureAwait(false);
                 throw new TimeoutException("Injected loss of the commit acknowledgement.");
             }
         };
@@ -548,21 +553,21 @@ public class AuctionHouseMarketPostgreSqlTest
             wallet.Money -= 1_000;
             return ValueTask.FromResult(true);
         }).ConfigureAwait(false));
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        await paused.Task.WaitAsync(Timeout).ConfigureAwait(false);
         Assert.That(context.IsQuarantined, Is.False);
-        var queuedSave = Task.Run(async () =>
-        {
-            wallet.Money = 1;
-            return await context.SaveChangesAsync().ConfigureAwait(false);
-        });
-        var queuedTransaction = Task.Run(async () => await context.RunInTransactionAsync<bool>(_ => ValueTask.FromResult(true)).ConfigureAwait(false));
-        await Task.Delay(500).ConfigureAwait(false);
-        Assert.That(queuedSave.IsCompleted || queuedTransaction.IsCompleted, Is.False, "both wait for the context lock");
+
+        // Called directly from this flow, while the failing transaction holds the context lock: both pass the check
+        // before the lock synchronously and then wait for the lock.
+        wallet.Money = 1;
+        var queuedSave = context.SaveChangesAsync().AsTask();
+        var queuedTransaction = context.RunInTransactionAsync<bool>(_ => ValueTask.FromResult(true)).AsTask();
+        Assert.That(queuedSave.IsCompleted, Is.False, "the save waits for the context lock");
+        Assert.That(queuedTransaction.IsCompleted, Is.False, "the transaction waits for the context lock");
         release.SetResult();
 
-        Assert.That(async () => await failing.ConfigureAwait(false), Throws.InstanceOf<TransactionOutcomeUnknownException>());
-        Assert.That(await queuedSave.ConfigureAwait(false), Is.False);
-        Assert.That(async () => await queuedTransaction.ConfigureAwait(false), Throws.InvalidOperationException);
+        Assert.That(async () => await failing.WaitAsync(Timeout).ConfigureAwait(false), Throws.InstanceOf<TransactionOutcomeUnknownException>());
+        Assert.That(await queuedSave.WaitAsync(Timeout).ConfigureAwait(false), Is.False);
+        Assert.That(async () => await queuedTransaction.WaitAsync(Timeout).ConfigureAwait(false), Throws.InvalidOperationException);
         Assert.That(await this.GetDatabaseMoneyAsync(buyer).ConfigureAwait(false), Is.EqualTo(50_000_000 - 1_000), "the committed transaction, but not the queued save");
     }
 
@@ -639,8 +644,8 @@ public class AuctionHouseMarketPostgreSqlTest
         var claiming = Task.Run(async () => await this._market.ClaimAsync(seller, new AuctionClaimOrder(null)).ConfigureAwait(false));
         await barrier.WaitForWaitersAsync(2).ConfigureAwait(false);
         await barrier.ReleaseAsync().ConfigureAwait(false);
-        var bought = await buying.ConfigureAwait(false);
-        var claimed = await claiming.ConfigureAwait(false);
+        var bought = await buying.WaitAsync(Timeout).ConfigureAwait(false);
+        var claimed = await claiming.WaitAsync(Timeout).ConfigureAwait(false);
 
         Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
         Assert.That(bought.Paid, Is.EqualTo(3_100_000));

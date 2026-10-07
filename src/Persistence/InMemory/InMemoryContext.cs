@@ -59,9 +59,14 @@ public class InMemoryContext : IContext
     /// <summary>
     /// Saves the changes of the context.
     /// </summary>
-    /// <returns><c>True</c>, if the saving was successful; <c>false</c>, otherwise.</returns>
+    /// <returns><c>True</c>, if the saving was successful; <c>false</c>, otherwise, e.g. when the context is quarantined.</returns>
     public bool SaveChanges()
     {
+        if (this.IsQuarantined)
+        {
+            return false;
+        }
+
         foreach (var repository in this.Provider.MemoryRepositories)
         {
             repository.OnSaveChanges();
@@ -73,11 +78,6 @@ public class InMemoryContext : IContext
     /// <inheritdoc/>
     public async ValueTask<bool> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        if (this.IsQuarantined)
-        {
-            return false;
-        }
-
         var result = this.SaveChanges();
         if (result)
         {

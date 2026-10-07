@@ -81,13 +81,26 @@ public static class PlayerTestHelper
     /// <param name="createCharacter">Creates the character with its inventory, e.g. by loading it with the given
     /// persistence context of the player; returning <see langword="null"/> creates a mocked character.</param>
     /// <returns>The test player.</returns>
-    public static async ValueTask<Player> CreatePlayerAsync(IGameContext gameContext, Func<IPlayerContext, ValueTask<Character?>> createCharacter)
+    public static ValueTask<Player> CreatePlayerAsync(IGameContext gameContext, Func<IPlayerContext, ValueTask<Character?>> createCharacter)
+        => InitializePlayerAsync<Player>(new TestPlayer(gameContext), createCharacter);
+
+    /// <summary>
+    /// Initializes a created player like <see cref="CreatePlayerAsync(IGameContext)"/> does: an account, a (mocked)
+    /// character of a mocked class, and the selection of the character.
+    /// </summary>
+    /// <typeparam name="TPlayer">The type of the player.</typeparam>
+    /// <param name="player">The created player, e.g. a remote player.</param>
+    /// <param name="createCharacter">Creates the character, see <see cref="CreatePlayerAsync(IGameContext, Func{IPlayerContext, ValueTask{Character?}})"/>; a mocked character if <see langword="null"/>.</param>
+    /// <returns>The initialized player.</returns>
+    public static async ValueTask<TPlayer> InitializePlayerAsync<TPlayer>(TPlayer player, Func<IPlayerContext, ValueTask<Character?>>? createCharacter = null)
+        where TPlayer : Player
     {
+        var gameContext = player.GameContext;
         var accountMock = new Mock<Account>();
         accountMock.Setup(mock => mock.Attributes).Returns(new List<StatAttribute>());
         accountMock.Setup(mock => mock.UnlockedCharacterClasses).Returns(new List<CharacterClass>());
-        var player = new TestPlayer(gameContext) { Account = accountMock.Object };
-        var character = await createCharacter(player.PersistenceContext).ConfigureAwait(false);
+        player.Account = accountMock.Object;
+        var character = createCharacter is null ? null : await createCharacter(player.PersistenceContext).ConfigureAwait(false);
         if (character is null)
         {
             var characterMock = new Mock<Character>();

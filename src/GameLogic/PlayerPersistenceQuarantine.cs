@@ -26,7 +26,16 @@ public static class PlayerPersistenceQuarantine
     /// </summary>
     /// <param name="player">The player.</param>
     /// <returns>The task.</returns>
-    public static async ValueTask QuarantineAsync(Player player)
+    public static ValueTask QuarantineAsync(Player player) => QuarantineAsync(player, null);
+
+    /// <summary>
+    /// Quarantines the player, see <see cref="QuarantineAsync(Player)"/>; the detached disconnection waits for the given
+    /// gate first, e.g. so that tests can keep the disconnection pending.
+    /// </summary>
+    /// <param name="player">The player.</param>
+    /// <param name="beforeDisconnect">The gate which the detached disconnection awaits first; <see langword="null"/> for none.</param>
+    /// <returns>The task.</returns>
+    internal static async ValueTask QuarantineAsync(Player player, Func<Task>? beforeDisconnect)
     {
         player.PersistenceContext.Quarantine();
         player.Logger.LogError("The persistence of {player} is quarantined; the player is disconnected without saving.", player);
@@ -45,6 +54,11 @@ public static class PlayerPersistenceQuarantine
             {
                 try
                 {
+                    if (beforeDisconnect is not null)
+                    {
+                        await beforeDisconnect().ConfigureAwait(false);
+                    }
+
                     await player.DisconnectAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
