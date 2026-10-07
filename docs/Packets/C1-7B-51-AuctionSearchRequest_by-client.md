@@ -18,7 +18,7 @@ The server answers with an AuctionSearchResult with the same request id: the mat
 | 3 | 1 |    Byte   | 0x51  | Packet header - sub packet type identifier |
 | 4 | 2 | ShortLittleEndian |  | RequestId; The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it. |
 | 6 | 2 | ShortLittleEndian |  | Page; The requested page, starting at 0. |
-| 8 | 1 | AuctionSortOrder |  | Sort; The sort order of the results. |
+| 8 | 1 | AuctionSortOrder |  | Sort; The sort order of the results; ties are broken by listing time ascending, then by listing id. |
 | 9 | 2 | ShortLittleEndian |  | SlotMask; The equipment slot kinds, 0 = any. Bit 0 weapon, 1 shield, 2 helm, 3 armor, 4 pants, 5 gloves, 6 boots, 7 wings, 8 pendant, 9 ring, 10 pet. |
 | 11 | 2 | ShortLittleEndian |  | GroupMask; The native item groups, 0 = any. Bit n = item group n. |
 | 13 | 1 | AuctionClassLine |  | ClassLine; The class line which must be able to use the item. |
@@ -52,6 +52,8 @@ Defines the sort order of an auction search result.
 |-------|------|-------------|
 | 0 | PriceAscending | Sorted by price, the cheapest first. |
 | 1 | PriceDescending | Sorted by price, the most expensive first. |
+| 2 | EndingSoon | Sorted by expiry time, the one ending soonest first. |
+| 3 | Newest | Sorted by listing time, the newest first. |
 
 ### AuctionClassLine Enum
 

@@ -48,12 +48,15 @@ internal sealed class AuctionMarketReader
                                                    && AuctionSearchFilter.Matches(query, listing, player));
         matches.Sort((x, y) =>
         {
-            var result = x.UnitPrice.CompareTo(y.UnitPrice);
-            if (query.Sort == AuctionHouseSortOrder.PriceDescending)
+            var result = query.Sort switch
             {
-                result = -result;
-            }
+                AuctionHouseSortOrder.PriceDescending => y.UnitPrice.CompareTo(x.UnitPrice),
+                AuctionHouseSortOrder.EndingSoon => x.ExpiresAt.CompareTo(y.ExpiresAt),
+                AuctionHouseSortOrder.Newest => y.CreatedAt.CompareTo(x.CreatedAt),
+                _ => x.UnitPrice.CompareTo(y.UnitPrice),
+            };
 
+            // Ties are broken by listing time ascending, then by id, so that pages are stable.
             return result != 0 ? result : CompareOldestFirst(x, y);
         });
 

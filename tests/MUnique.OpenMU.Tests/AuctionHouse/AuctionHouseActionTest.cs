@@ -301,9 +301,11 @@ public class AuctionHouseActionTest
         await this._action.SearchAsync(player, 1, SearchQuery with { AncientSetMembers = [new AuctionAncientSetMember(4105, 3)] }).ConfigureAwait(false);
         await this._action.SearchAsync(player, 2, SearchQuery with { UpgradeMin = 9, UpgradeMax = 8 }).ConfigureAwait(false);
         await this._action.SearchAsync(player, 3, SearchQuery with { NameMatchTypes = Enumerable.Repeat((ushort)5, 49).ToList() }).ConfigureAwait(false);
+        await this._action.SearchAsync(player, 4, SearchQuery with { Sort = (AuctionHouseSortOrder)4 }).ConfigureAwait(false);
 
         var view = player.View<IShowAuctionSearchResultPlugIn>();
-        view.Verify(v => v.ShowAuctionSearchResultAsync(It.IsAny<ushort>(), It.Is<AuctionSearchPage>(p => p.Result == AuctionHouseResult.InvalidRequest)), Times.Exactly(3));
+        view.Verify(v => v.ShowAuctionSearchResultAsync(It.IsAny<ushort>(), It.Is<AuctionSearchPage>(p => p.Result == AuctionHouseResult.InvalidRequest)), Times.Exactly(4));
+        view.Verify(v => v.ShowAuctionSearchResultAsync(4, It.Is<AuctionSearchPage>(p => p.Result == AuctionHouseResult.InvalidRequest)), Times.Once, "sort 4 is not defined");
         Assert.That(market.Calls.Any(call => call.Method == nameof(IAuctionHouseMarket.SearchAsync)), Is.False);
     }
 

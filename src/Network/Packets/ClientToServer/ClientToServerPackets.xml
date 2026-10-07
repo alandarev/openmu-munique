@@ -2246,7 +2246,7 @@
           <Type>Enum</Type>
           <TypeName>AuctionSortOrder</TypeName>
           <Name>Sort</Name>
-          <Description>The sort order of the results.</Description>
+          <Description>The sort order of the results; ties are broken by listing time ascending, then by listing id.</Description>
         </Field>
         <Field>
           <Index>9</Index>
@@ -4957,6 +4957,16 @@
           <Name>PriceDescending</Name>
           <Description>Sorted by price, the most expensive first.</Description>
           <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>EndingSoon</Name>
+          <Description>Sorted by expiry time, the one ending soonest first.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Newest</Name>
+          <Description>Sorted by listing time, the newest first.</Description>
+          <Value>3</Value>
         </EnumValue>
       </Values>
     </Enum>

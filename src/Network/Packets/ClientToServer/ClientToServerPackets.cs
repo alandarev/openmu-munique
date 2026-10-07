@@ -9138,7 +9138,7 @@ public readonly struct AuctionSearchRequest
     }
 
     /// <summary>
-    /// Gets or sets the sort order of the results.
+    /// Gets or sets the sort order of the results; ties are broken by listing time ascending, then by listing id.
     /// </summary>
     public AuctionSortOrder Sort
     {
@@ -19159,6 +19159,16 @@ public readonly struct ChatCommandListRequest
         /// Sorted by price, the most expensive first.
         /// </summary>
             PriceDescending = 1,
+
+        /// <summary>
+        /// Sorted by expiry time, the one ending soonest first.
+        /// </summary>
+            EndingSoon = 2,
+
+        /// <summary>
+        /// Sorted by listing time, the newest first.
+        /// </summary>
+            Newest = 3,
     }
 
     /// <summary>

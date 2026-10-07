@@ -9013,7 +9013,7 @@ public readonly ref struct AuctionSearchRequestRef
     }
 
     /// <summary>
-    /// Gets or sets the sort order of the results.
+    /// Gets or sets the sort order of the results; ties are broken by listing time ascending, then by listing id.
     /// </summary>
     public AuctionSortOrder Sort
     {

@@ -5,7 +5,7 @@
 namespace MUnique.OpenMU.GameLogic.AuctionHouse;
 
 /// <summary>
-/// The sort order of an auction house search.
+/// The sort order of an auction house search. Ties are broken by listing time ascending, then by listing id.
 /// </summary>
 public enum AuctionHouseSortOrder : byte
 {
@@ -18,4 +18,14 @@ public enum AuctionHouseSortOrder : byte
     /// The most expensive listing first.
     /// </summary>
     PriceDescending = 1,
+
+    /// <summary>
+    /// The listing which ends soonest first.
+    /// </summary>
+    EndingSoon = 2,
+
+    /// <summary>
+    /// The newest listing first.
+    /// </summary>
+    Newest = 3,
 }
