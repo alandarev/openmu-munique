@@ -12,8 +12,10 @@ using MUnique.OpenMU.PlugIns;
 /// and it provides the <see cref="IAuctionHouseMarket"/> behind the broker.
 /// </summary>
 /// <remarks>
-/// Without an active feature or without a market, an auction house NPC still opens its broker with the
-/// default rules, and every request is answered with <see cref="AuctionHouseResult.Unavailable"/>.
+/// Without an active feature, an auction house NPC still opens its broker with the default rules, and every request
+/// is answered with <see cref="AuctionHouseResult.Unavailable"/>. With an active feature, the requests go to the
+/// <see cref="Market"/>, or when it isn't set, to the market which the game context shares with all game contexts of
+/// the same database and game configuration (<see cref="AuctionHouseMarkets"/>).
 /// </remarks>
 [PlugIn]
 [Display(Name = nameof(PlugInResources.AuctionHouseFeaturePlugIn_Name), Description = nameof(PlugInResources.AuctionHouseFeaturePlugIn_Description), ResourceType = typeof(PlugInResources))]
@@ -24,7 +26,8 @@ public class AuctionHouseFeaturePlugIn : IFeaturePlugIn, ISupportCustomConfigura
     public AuctionHouseRules? Configuration { get; set; }
 
     /// <summary>
-    /// Gets or sets the market behind the broker; <see langword="null"/> when no market is available.
+    /// Gets or sets a market which replaces the shared market of the game context, e.g. for tests;
+    /// <see langword="null"/> to use the shared market.
     /// </summary>
     public IAuctionHouseMarket? Market { get; set; }
 

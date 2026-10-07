@@ -14,6 +14,7 @@ using MUnique.OpenMU.GameLogic;
 using MUnique.OpenMU.GameLogic.Attributes;
 using MUnique.OpenMU.GameLogic.Offline;
 using MUnique.OpenMU.GameLogic.Views;
+using MUnique.OpenMU.Persistence;
 using MUnique.OpenMU.Persistence.InMemory;
 using MUnique.OpenMU.PlugIns;
 
@@ -61,20 +62,48 @@ public static class PlayerTestHelper
     /// </summary>
     /// <param name="gameContext">The game context.</param>
     /// <returns>The test player.</returns>
-    public static async ValueTask<Player> CreatePlayerAsync(IGameContext gameContext)
+    public static ValueTask<Player> CreatePlayerAsync(IGameContext gameContext) => CreatePlayerAsync(gameContext, (Character?)null);
+
+    /// <summary>
+    /// Gets a test player with the specified game context and character.
+    /// </summary>
+    /// <param name="gameContext">The game context.</param>
+    /// <param name="character">The character with its inventory; a mocked character if <see langword="null"/>.</param>
+    /// <returns>The test player.</returns>
+    public static ValueTask<Player> CreatePlayerAsync(IGameContext gameContext, Character? character)
+        => CreatePlayerAsync(gameContext, _ => ValueTask.FromResult(character));
+
+    /// <summary>
+    /// Gets a test player with the specified game context and a character which is created with the persistence
+    /// context of the player.
+    /// </summary>
+    /// <param name="gameContext">The game context.</param>
+    /// <param name="createCharacter">Creates the character with its inventory, e.g. by loading it with the given
+    /// persistence context of the player; returning <see langword="null"/> creates a mocked character.</param>
+    /// <returns>The test player.</returns>
+    public static async ValueTask<Player> CreatePlayerAsync(IGameContext gameContext, Func<IPlayerContext, ValueTask<Character?>> createCharacter)
     {
-        var characterMock = new Mock<Character>();
-        characterMock.SetupAllProperties();
-        characterMock.Setup(c => c.LearnedSkills).Returns(new List<SkillEntry>());
-        characterMock.Setup(c => c.Attributes).Returns(new List<StatAttribute>());
-        characterMock.Setup(c => c.DropItemGroups).Returns(new List<DropItemGroup>());
+        var accountMock = new Mock<Account>();
+        accountMock.Setup(mock => mock.Attributes).Returns(new List<StatAttribute>());
+        accountMock.Setup(mock => mock.UnlockedCharacterClasses).Returns(new List<CharacterClass>());
+        var player = new TestPlayer(gameContext) { Account = accountMock.Object };
+        var character = await createCharacter(player.PersistenceContext).ConfigureAwait(false);
+        if (character is null)
+        {
+            var characterMock = new Mock<Character>();
+            characterMock.SetupAllProperties();
+            characterMock.Setup(c => c.LearnedSkills).Returns(new List<SkillEntry>());
+            characterMock.Setup(c => c.Attributes).Returns(new List<StatAttribute>());
+            characterMock.Setup(c => c.DropItemGroups).Returns(new List<DropItemGroup>());
 
-        var inventoryMock = new Mock<ItemStorage>();
-        inventoryMock.SetupAllProperties();
-        inventoryMock.Setup(i => i.Items).Returns(new List<Item>());
+            var inventoryMock = new Mock<ItemStorage>();
+            inventoryMock.SetupAllProperties();
+            inventoryMock.Setup(i => i.Items).Returns(new List<Item>());
 
-        var character = characterMock.Object;
-        character.Inventory = inventoryMock.Object;
+            character = characterMock.Object;
+            character.Inventory = inventoryMock.Object;
+        }
+
         character.CurrentMap = gameContext.Configuration.Maps.FirstOrDefault(m => m.Number == 0);
         var characterClassMock = new Mock<CharacterClass>();
         characterClassMock.Setup(c => c.StatAttributes).Returns(
@@ -131,10 +160,6 @@ public static class PlayerTestHelper
             character.Attributes.Add(new StatAttribute(attributeDef.Attribute!, attributeDef.BaseValue));
         }
 
-        var accountMock = new Mock<Account>();
-        accountMock.Setup(mock => mock.Attributes).Returns(new List<StatAttribute>());
-        accountMock.Setup(mock => mock.UnlockedCharacterClasses).Returns(new List<CharacterClass>());
-        var player = new TestPlayer(gameContext) { Account = accountMock.Object };
         await player.PlayerState.TryAdvanceToAsync(PlayerState.LoginScreen).ConfigureAwait(false);
         await player.PlayerState.TryAdvanceToAsync(PlayerState.Authenticated).ConfigureAwait(false);
         await player.PlayerState.TryAdvanceToAsync(PlayerState.CharacterSelection).ConfigureAwait(false);

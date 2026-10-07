@@ -95,14 +95,13 @@ public class AuctionHouseActionTest
     }
 
     /// <summary>
-    /// Without a market, the broker opens and every request is answered with <see cref="AuctionHouseResult.Unavailable"/>.
+    /// Without an active feature, the broker opens and every request is answered with <see cref="AuctionHouseResult.Unavailable"/>.
+    /// With an active feature, the shared market of the game context answers (see <see cref="AuctionHouseMarketSharingTest"/>).
     /// </summary>
-    /// <param name="activateFeature">If set to <c>true</c>, the feature is active, but without a market.</param>
-    [TestCase(true)]
-    [TestCase(false)]
-    public async Task RequestWithoutMarketIsAnsweredUnavailableAsync(bool activateFeature)
+    [Test]
+    public async Task RequestWithoutFeatureIsAnsweredUnavailableAsync()
     {
-        var player = await AuctionHouseTestHelper.CreatePlayerAsync(null, activateFeature: activateFeature).ConfigureAwait(false);
+        var player = await AuctionHouseTestHelper.CreatePlayerAsync(null, activateFeature: false).ConfigureAwait(false);
         await AuctionHouseTestHelper.OpenBrokerAsync(player).ConfigureAwait(false);
 
         await this._action.SearchAsync(player, 7, SearchQuery).ConfigureAwait(false);
