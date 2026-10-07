@@ -69,6 +69,15 @@ public class TradeButtonAction : BaseTradeAction
     {
         await using var context = await trader.PlayerState.TryBeginAdvanceToAsync(PlayerState.EnteredWorld).ConfigureAwait(false);
         await using var partnerContext = await tradingPartner.PlayerState.TryBeginAdvanceToAsync(PlayerState.EnteredWorld).ConfigureAwait(false);
+        if (trader.PersistenceContext.IsQuarantined || tradingPartner.PersistenceContext.IsQuarantined)
+        {
+            // The in-memory state of a quarantined trader may contradict the database; nothing of it may move.
+            context.Allowed = false;
+            partnerContext.Allowed = false;
+            (trader as Player)?.Logger.LogWarning($"Refused to finish the trade of {trader.Name} and {tradingPartner.Name}, because the persistence of one of them is quarantined.");
+            return TradeResult.Cancelled;
+        }
+
         if (!context.Allowed || !partnerContext.Allowed)
         {
             context.Allowed = false;

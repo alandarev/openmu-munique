@@ -37,10 +37,10 @@ internal class EntityFrameworkContextBase : IContext
     private bool _isDisposed;
 
     /// <summary>
-    /// A value indicating whether a transaction commit of this context failed with unknown outcome, so that the
-    /// in-memory state may contradict the database; such a context refuses saves and transactions.
+    /// A value indicating whether this context is quarantined, e.g. because a transaction commit failed with unknown
+    /// outcome, so that the in-memory state may contradict the database; such a context refuses saves and transactions.
     /// </summary>
-    private volatile bool _isOutcomeUnknown;
+    private volatile bool _isQuarantined;
     private int _notificationSuspensions;
 
     /// <summary>
@@ -72,6 +72,12 @@ internal class EntityFrameworkContextBase : IContext
     public bool HasChanges => this.Context.ChangeTracker.HasChanges();
 
     /// <summary>
+    /// Gets a value indicating whether this context is quarantined: its in-memory state may contradict the database,
+    /// so it refuses every save and transaction. See <see cref="IPlayerContext.IsQuarantined"/>.
+    /// </summary>
+    public bool IsQuarantined => this._isQuarantined;
+
+    /// <summary>
     /// Gets the entity framework context.
     /// </summary>
     internal DbContext Context { get; }
@@ -95,10 +101,8 @@ internal class EntityFrameworkContextBase : IContext
             throw new InvalidOperationException("The changes of a transaction are saved when it gets committed.");
         }
 
-        if (this._isOutcomeUnknown)
+        if (this.IsSaveRefused())
         {
-            // Its in-memory state may contradict the database, see TransactionOutcomeUnknownException.
-            this._logger.LogWarning("Refused to save a context after a transaction commit with unknown outcome.");
             return false;
         }
 
@@ -139,11 +143,7 @@ internal class EntityFrameworkContextBase : IContext
             throw new InvalidOperationException("Transactions can't be nested.");
         }
 
-        if (this._isOutcomeUnknown)
-        {
-            throw new InvalidOperationException("The context refuses transactions after a transaction commit with unknown outcome.");
-        }
-
+        this.ThrowIfQuarantined();
         if (this._changeListener is not null)
         {
             // The configuration change publishing works on the changes of a single save, which is not needed for transactions yet.
@@ -151,6 +151,9 @@ internal class EntityFrameworkContextBase : IContext
         }
 
         using var l = await this._lock.LockAsync(cancellationToken).ConfigureAwait(false);
+
+        // Checked again under the lock: a transaction which held it may have quarantined the context meanwhile.
+        this.ThrowIfQuarantined();
         this._isTransactionFlow.Value = true;
         var transaction = new EntityFrameworkTransaction(this);
         var addedBefore = this.GetAddedEntities();
@@ -173,7 +176,7 @@ internal class EntityFrameworkContextBase : IContext
             }
             catch (Exception ex) when (isCommitting)
             {
-                this._isOutcomeUnknown = true;
+                this._isQuarantined = true;
                 this._logger.LogError(ex, "The outcome of a transaction commit is unknown; the context refuses further saves.");
                 throw new TransactionOutcomeUnknownException(ex);
             }
@@ -205,6 +208,14 @@ internal class EntityFrameworkContextBase : IContext
             transaction.DetachLockedEntities();
             this._isTransactionFlow.Value = false;
         }
+    }
+
+    /// <summary>
+    /// Quarantines this context, see <see cref="IPlayerContext.Quarantine"/>.
+    /// </summary>
+    public void Quarantine()
+    {
+        this._isQuarantined = true;
     }
 
     /// <inheritdoc />
@@ -439,6 +450,12 @@ internal class EntityFrameworkContextBase : IContext
     {
         using var l = await this.AcquireLockAsync().ConfigureAwait(false);
 
+        // Checked again under the lock: a transaction which held it may have quarantined the context meanwhile.
+        if (this.IsSaveRefused())
+        {
+            return false;
+        }
+
         // when we have a change publisher attached, we want to get the changed entries before accepting them.
         // Otherwise, we can accept them.
         var acceptChanges = true;
@@ -499,6 +516,26 @@ internal class EntityFrameworkContextBase : IContext
         where TModel : class, IIdentifiable
     {
         return await new AccountJsonObjectLoader().LoadObjectAsync<TModel>(id, this.Context, cancellationToken).ConfigureAwait(false);
+    }
+
+    private bool IsSaveRefused()
+    {
+        if (!this._isQuarantined)
+        {
+            return false;
+        }
+
+        // Its in-memory state may contradict the database, see TransactionOutcomeUnknownException.
+        this._logger.LogWarning("Refused to save a quarantined context.");
+        return true;
+    }
+
+    private void ThrowIfQuarantined()
+    {
+        if (this._isQuarantined)
+        {
+            throw new InvalidOperationException("A quarantined context refuses transactions.");
+        }
     }
 
     private ValueTask InjectCommitFaultAsync(bool isCommitted)

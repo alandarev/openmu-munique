@@ -173,20 +173,26 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
     }
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default)
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionListing>> LockDueAuctionListingsAsync(IPersistenceTransaction transaction, DateTime now, int maximumCount, CancellationToken cancellationToken = default)
     {
         var listings = await this.Provider.GetRepository<AuctionListing>().GetAllAsync(cancellationToken).ConfigureAwait(false);
-        return listings
+        var dueIds = listings
             .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active && listing.ExpiresAt <= now)
             .OrderBy(listing => listing.ExpiresAt)
-            .Select(listing => listing.Id)
+            .ThenBy(listing => listing.Id)
             .Take(maximumCount)
-            .ToList();
+            .Select(listing => listing.Id);
+        return await transaction.LockAsync<DataModel.Entities.AuctionListing>(dueIds, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public async ValueTask<T> RunInTransactionAsync<T>(Func<IPersistenceTransaction, ValueTask<T>> operation, CancellationToken cancellationToken = default)
     {
+        if (this.IsQuarantined)
+        {
+            throw new InvalidOperationException("A quarantined context refuses transactions.");
+        }
+
         await this.Provider.TransactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {

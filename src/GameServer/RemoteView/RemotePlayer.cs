@@ -152,6 +152,24 @@ public class RemotePlayer : Player, IClientVersionProvider, IHasIpAddress
     }
 
     /// <summary>
+    /// Handles a packet, unless the persistence of the player is quarantined: then its in-memory state may contradict
+    /// the database, so nothing of the player may move anymore until the disconnection, and the packet is dropped.
+    /// Checked inside the persistence section, so that packets queued behind the quarantining request see it.
+    /// </summary>
+    /// <param name="packet">The packet.</param>
+    /// <returns>The task.</returns>
+    private ValueTask HandleUnlessQuarantinedAsync(Memory<byte> packet)
+    {
+        if (this.PersistenceContext.IsQuarantined)
+        {
+            this.Logger.LogWarning("Dropped a packet of the player {player}, because its persistence is quarantined.", this);
+            return ValueTask.CompletedTask;
+        }
+
+        return this.MainPacketHandler.HandlePacketAsync(this, packet);
+    }
+
+    /// <summary>
     /// Is getting called when a packet got received from the connection of the player.
     /// </summary>
     /// <param name="sequence">The packet.</param>
@@ -186,7 +204,7 @@ public class RemotePlayer : Player, IClientVersionProvider, IHasIpAddress
                     this.Logger.LogDebug("[C->S] {0}", buffer.ToArray().AsString());
                 }
 
-                await this.RunPersistenceExclusiveAsync(() => this.MainPacketHandler.HandlePacketAsync(this, buffer)).ConfigureAwait(false);
+                await this.RunPersistenceExclusiveAsync(() => this.HandleUnlessQuarantinedAsync(buffer)).ConfigureAwait(false);
             }
             finally
             {

@@ -32,6 +32,11 @@ public class InMemoryContext : IContext
     public bool HasChanges => false;
 
     /// <summary>
+    /// Gets a value indicating whether this context is quarantined and refuses saves.
+    /// </summary>
+    public bool IsQuarantined { get; private set; }
+
+    /// <summary>
     /// Gets the manager which holds the memory repositories.
     /// </summary>
     /// <value>
@@ -68,6 +73,11 @@ public class InMemoryContext : IContext
     /// <inheritdoc/>
     public async ValueTask<bool> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (this.IsQuarantined)
+        {
+            return false;
+        }
+
         var result = this.SaveChanges();
         if (result)
         {
@@ -75,6 +85,14 @@ public class InMemoryContext : IContext
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Quarantines this context, so that it refuses saves.
+    /// </summary>
+    public void Quarantine()
+    {
+        this.IsQuarantined = true;
     }
 
     /// <inheritdoc />

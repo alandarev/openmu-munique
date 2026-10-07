@@ -87,7 +87,8 @@ public class BuyRequestAction
         bool itemSold = false;
         using (await requestedPlayer.ShopStorage.StoreLock.LockAsync())
         {
-            if (!requestedPlayer.ShopStorage.StoreOpen)
+            // A quarantined seller's store is closed; checked under the store lock, like the quarantine closes it.
+            if (!requestedPlayer.ShopStorage.StoreOpen || requestedPlayer.PersistenceContext.IsQuarantined || player.PersistenceContext.IsQuarantined)
             {
                 player.Logger.LogDebug("Store not open anymore, Character {0}", requestedPlayer.SelectedCharacter?.Name);
                 await player.InvokeViewPlugInAsync<IPlayerShopBuyRequestResultPlugIn>(p => p.ShowResultAsync(requestedPlayer, ItemBuyResult.ShopNotOpened, null)).ConfigureAwait(false);

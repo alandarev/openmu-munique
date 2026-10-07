@@ -89,21 +89,23 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
         }
     }
 
-    private async ValueTask<IReadOnlyList<T>> LockAsync<T>(IEnumerable<Guid> ids, bool skipLocked, CancellationToken cancellationToken)
+    /// <summary>
+    /// Locks rows with a query of the form <c>SELECT "Id" AS "Value" FROM … FOR UPDATE …</c> and loads the entities of
+    /// the locked rows, like <see cref="LockAsync{T}(IEnumerable{Guid}, CancellationToken)"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the entities.</typeparam>
+    /// <param name="createSql">Creates the query from the quoted schema and table name of the entity type.</param>
+    /// <param name="parameters">The parameters of the query.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The locked entities, in the order of the query.</returns>
+    internal async ValueTask<IReadOnlyList<T>> LockByQueryAsync<T>(Func<string, string> createSql, object[] parameters, CancellationToken cancellationToken)
         where T : class
     {
         var dbContext = this._context.Context;
         var entityType = dbContext.Model.FindLeastDerivedEntityTypes(typeof(T)).FirstOrDefault()
                          ?? throw new ArgumentException($"{typeof(T)} is not part of the model of the context.", nameof(T));
-        var idArray = ids.Distinct().ToArray();
-        if (idArray.Length == 0)
-        {
-            return [];
-        }
-
-        // FOR UPDATE locks the rows in the order in which they are returned, so ORDER BY gives a global lock order.
-        var sql = $$"""SELECT "Id" AS "Value" FROM "{{entityType.GetSchema()}}"."{{entityType.GetTableName()}}" WHERE "Id" = ANY({0}) ORDER BY "Id" FOR UPDATE{{(skipLocked ? " SKIP LOCKED" : string.Empty)}}""";
-        var lockedIds = await dbContext.Database.SqlQueryRaw<Guid>(sql, new object[] { idArray }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var sql = createSql($"\"{entityType.GetSchema()}\".\"{entityType.GetTableName()}\"");
+        var lockedIds = await dbContext.Database.SqlQueryRaw<Guid>(sql, parameters).ToListAsync(cancellationToken).ConfigureAwait(false);
 
         var result = new List<T>(lockedIds.Count);
         foreach (var id in lockedIds)
@@ -124,5 +126,22 @@ internal sealed class EntityFrameworkTransaction : IPersistenceTransaction
         }
 
         return result;
+    }
+
+    private async ValueTask<IReadOnlyList<T>> LockAsync<T>(IEnumerable<Guid> ids, bool skipLocked, CancellationToken cancellationToken)
+        where T : class
+    {
+        var idArray = ids.Distinct().ToArray();
+        if (idArray.Length == 0)
+        {
+            return [];
+        }
+
+        // FOR UPDATE locks the rows in the order in which they are returned, so ORDER BY gives a global lock order.
+        var skip = skipLocked ? " SKIP LOCKED" : string.Empty;
+        return await this.LockByQueryAsync<T>(
+            table => $$"""SELECT "Id" AS "Value" FROM {{table}} WHERE "Id" = ANY({0}) ORDER BY "Id" FOR UPDATE{{skip}}""",
+            [idArray],
+            cancellationToken).ConfigureAwait(false);
     }
 }

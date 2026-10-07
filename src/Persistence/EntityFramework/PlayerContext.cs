@@ -200,18 +200,17 @@ internal class PlayerContext : CachingEntityFrameworkContext, IPlayerContext
     }
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default)
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionListing>> LockDueAuctionListingsAsync(IPersistenceTransaction transaction, DateTime now, int maximumCount, CancellationToken cancellationToken = default)
     {
-        using (this.RepositoryProvider.ContextStack.UseContext(this))
+        if (transaction is not EntityFrameworkTransaction efTransaction)
         {
-            return await this.Context.Set<AuctionListing>()
-                .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active && listing.ExpiresAt <= now)
-                .OrderBy(listing => listing.ExpiresAt)
-                .Select(listing => listing.Id)
-                .Take(maximumCount)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
+            throw new ArgumentException("The transaction is not a transaction of this context.", nameof(transaction));
         }
+
+        return await efTransaction.LockByQueryAsync<DataModel.Entities.AuctionListing>(
+            table => $$"""SELECT "Id" AS "Value" FROM {{table}} WHERE "State" = {0} AND "ExpiresAt" <= {1} ORDER BY "ExpiresAt", "Id" LIMIT {2} FOR UPDATE SKIP LOCKED""",
+            [(byte)DataModel.Entities.AuctionListingState.Active, DateTime.SpecifyKind(now, DateTimeKind.Utc), maximumCount],
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

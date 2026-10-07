@@ -14,6 +14,13 @@ using MUnique.OpenMU.Interfaces;
 public interface IPlayerContext : IContext
 {
     /// <summary>
+    /// Gets a value indicating whether this context is quarantined: its in-memory state may contradict the database,
+    /// e.g. after a <see cref="TransactionOutcomeUnknownException"/>, so it refuses every save and transaction. The
+    /// owner of the context must not move anything of it anymore and has to drop it.
+    /// </summary>
+    bool IsQuarantined { get; }
+
+    /// <summary>
     /// Gets the letter body by the id of its header.
     /// </summary>
     /// <param name="headerId">The id of its header.</param>
@@ -168,13 +175,22 @@ public interface IPlayerContext : IContext
     ValueTask<IReadOnlyList<Guid>> GetActiveGoodsListingIdsAsync(byte itemGroup, short itemNumber, byte itemLevel, Guid excludedSellerCharacterId, long maximumUnitPrice, DateTime now, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the identifiers of active auction house listings whose duration ended, oldest expiry first.
+    /// Locks the active auction house listings whose duration ended, oldest expiry first, in one statement which skips
+    /// the rows that other transactions have locked (<c>FOR UPDATE SKIP LOCKED</c> with a limit), so that locked rows
+    /// never hide the due rows behind them; the listings are loaded like by <see cref="IPersistenceTransaction.LockAsync{T}"/>.
     /// </summary>
+    /// <param name="transaction">The transaction of <see cref="RunInTransactionAsync{T}"/> of this context.</param>
     /// <param name="now">The current point in time (UTC).</param>
-    /// <param name="maximumCount">The maximum count of identifiers.</param>
+    /// <param name="maximumCount">The maximum count of listings.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The identifiers of the due listings.</returns>
-    ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default);
+    /// <returns>The locked due listings.</returns>
+    ValueTask<IReadOnlyList<AuctionListing>> LockDueAuctionListingsAsync(IPersistenceTransaction transaction, DateTime now, int maximumCount, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Quarantines this context, see <see cref="IsQuarantined"/>. A transaction whose commit outcome is unknown does it
+    /// by itself.
+    /// </summary>
+    void Quarantine();
 
     /// <summary>
     /// Runs an operation which changes entities of this context as one database transaction: the operation may lock
