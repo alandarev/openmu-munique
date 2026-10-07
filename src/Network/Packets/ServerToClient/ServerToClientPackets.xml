@@ -7349,7 +7349,7 @@
       <Code>7B</Code>
       <SubCode>50</SubCode>
       <Name>AuctionHouseState</Name>
-      <Length>32</Length>
+      <Length>33</Length>
       <Direction>ServerToClient</Direction>
       <SentWhen>Open: instead of the NPC window response, when a player talks to an NPC with the auction-house window, and again after a RulesChanged answer. Closed: whenever the broker dialog ends (the close request of the client, warp, death, logout, another dialog).</SentWhen>
       <CausedReaction>Open: the client shows the auction house window with these rules. Closed: the client closes the auction house window.</CausedReaction>
@@ -7433,6 +7433,12 @@
           <Name>Durations</Name>
           <Description>The offered listing durations in hours; unused ones are 0.</Description>
           <Length>4</Length>
+        </Field>
+        <Field>
+          <Index>32</Index>
+          <Type>Byte</Type>
+          <Name>GoodsPriceDigits</Name>
+          <Description>The count of significant digits which a goods unit price may have; 0 = any.</Description>
         </Field>
       </Fields>
     </Packet>
@@ -15391,6 +15397,11 @@
           <Description>An internal error occurred.</Description>
           <Value>15</Value>
         </EnumValue>
+        <EnumValue>
+          <Name>PriceNotOnStep</Name>
+          <Description>A goods unit price has more significant digits than announced.</Description>
+          <Value>16</Value>
+        </EnumValue>
       </Values>
     </Enum>
     <Enum>
@@ -15478,18 +15489,28 @@
       <Values>
         <EnumValue>
           <Name>Sold</Name>
-          <Description>A listing sold.</Description>
+          <Description>A listing sold; the proceeds are in the collection.</Description>
           <Value>1</Value>
         </EnumValue>
         <EnumValue>
           <Name>Expired</Name>
-          <Description>A listing expired.</Description>
+          <Description>A listing expired; the units are in the collection.</Description>
           <Value>2</Value>
         </EnumValue>
         <EnumValue>
           <Name>DeliveriesWaiting</Name>
           <Description>Deliveries are waiting in the collection.</Description>
           <Value>3</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>SoldToInventory</Name>
+          <Description>A listing sold; the proceeds were added to the inventory Zen.</Description>
+          <Value>4</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>ExpiredToInventory</Name>
+          <Description>A listing expired; the units were returned to the inventory.</Description>
+          <Value>5</Value>
         </EnumValue>
       </Values>
     </Enum>

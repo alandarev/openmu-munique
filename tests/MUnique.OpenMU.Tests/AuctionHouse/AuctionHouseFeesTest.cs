@@ -157,6 +157,61 @@ public class AuctionHouseFeesTest
         var rules = new AuctionHouseRules { DurationHours = [0, 6, 12, 24, 48, 72] };
 
         Assert.That(rules.GetOfferedDurations(), Is.EqualTo(new byte[] { 6, 12, 24, 48 }));
-        Assert.That(AuctionHouseRules.Default.GetOfferedDurations(), Is.EqualTo(new byte[] { 12, 24, 48, 72 }));
+        Assert.That(AuctionHouseRules.Default.GetOfferedDurations(), Is.EqualTo(new byte[] { 48 }));
+    }
+
+    /// <summary>
+    /// The default rules of the operator: no flat posting fee, 5 % posting fee, 10 % sale fee, 48 hours,
+    /// 3 significant digits of goods unit prices.
+    /// </summary>
+    [Test]
+    public void DefaultRules()
+    {
+        var rules = AuctionHouseRules.Default;
+
+        Assert.That(rules.PageSize, Is.EqualTo(20));
+        Assert.That(rules.MaximumActiveListings, Is.EqualTo(20));
+        Assert.That(rules.MaximumPrice, Is.EqualTo(2_000_000_000));
+        Assert.That(rules.PostingFeeFlat, Is.EqualTo(0));
+        Assert.That(rules.PostingFeeBasisPoints, Is.EqualTo(500));
+        Assert.That(rules.SaleFeeBasisPoints, Is.EqualTo(1_000));
+        Assert.That(rules.RefundPostingFeeOnCancel, Is.False);
+        Assert.That(rules.DurationHours, Is.EqualTo(new byte[] { 48 }));
+        Assert.That(rules.GoodsPriceSignificantDigits, Is.EqualTo(3));
+        Assert.That(rules.MaximumRequestsPerSecond, Is.EqualTo(5));
+        Assert.That(AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None).GoodsPriceSignificantDigits, Is.EqualTo(3));
+    }
+
+    /// <summary>
+    /// A goods unit price is on a price step when it has at most the given count of significant digits.
+    /// </summary>
+    /// <param name="price">The unit price.</param>
+    /// <param name="digits">The count of significant digits.</param>
+    /// <param name="expected">The expected result.</param>
+    [TestCase(2_440_000u, (byte)3, true)]
+    [TestCase(2_449_999u, (byte)3, false)]
+    [TestCase(999_000u, (byte)3, true)]
+    [TestCase(999_999u, (byte)3, false)]
+    [TestCase(1_000_000u, (byte)3, true)]
+    [TestCase(1_010_000u, (byte)3, true)]
+    [TestCase(1_001_000u, (byte)3, false)]
+    [TestCase(1u, (byte)3, true)]
+    [TestCase(999u, (byte)3, true)]
+    [TestCase(1_234u, (byte)3, false)]
+    [TestCase(1_230u, (byte)3, true)]
+    [TestCase(1_234u, (byte)1, false)]
+    [TestCase(2_000_000_000u, (byte)1, true)]
+    [TestCase(2_147_483_647u, (byte)3, false)]
+    [TestCase(2_140_000_000u, (byte)3, true)]
+    [TestCase(2_147_483_647u, (byte)10, true)]
+    [TestCase(4_294_967_295u, (byte)10, true)]
+    [TestCase(4_294_967_295u, (byte)9, false)]
+    [TestCase(4_290_000_000u, (byte)3, true)]
+    [TestCase(4_294_967_295u, (byte)255, true)]
+    [TestCase(2_449_999u, (byte)0, true)]
+    [TestCase(4_294_967_295u, (byte)0, true)]
+    public void PriceStep(uint price, byte digits, bool expected)
+    {
+        Assert.That(AuctionHouseFees.IsOnPriceStep(price, digits), Is.EqualTo(expected));
     }
 }

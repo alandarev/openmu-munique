@@ -20060,7 +20060,7 @@ public readonly struct AuctionHouseState
     /// <summary>
     /// Gets the initial length of this data packet. When the size is dynamic, this value may be bigger than actually needed.
     /// </summary>
-    public static int Length => 32;
+    public static int Length => 33;
 
     /// <summary>
     /// Gets the header of this packet.
@@ -20181,6 +20181,15 @@ public readonly struct AuctionHouseState
     public Span<byte> Durations
     {
         get => this._data.Slice(28, 4).Span;
+    }
+
+    /// <summary>
+    /// Gets or sets the count of significant digits which a goods unit price may have; 0 = any.
+    /// </summary>
+    public byte GoodsPriceDigits
+    {
+        get => this._data.Span[32];
+        set => this._data.Span[32] = value;
     }
 
     /// <summary>
@@ -40883,6 +40892,11 @@ public readonly struct MonsterSkillAnimation
         /// An internal error occurred.
         /// </summary>
             InternalError = 15,
+
+        /// <summary>
+        /// A goods unit price has more significant digits than announced.
+        /// </summary>
+            PriceNotOnStep = 16,
     }
 
     /// <summary>
@@ -40970,12 +40984,12 @@ public readonly struct MonsterSkillAnimation
     public enum AuctionNoticeKind
     {
         /// <summary>
-        /// A listing sold.
+        /// A listing sold; the proceeds are in the collection.
         /// </summary>
             Sold = 1,
 
         /// <summary>
-        /// A listing expired.
+        /// A listing expired; the units are in the collection.
         /// </summary>
             Expired = 2,
 
@@ -40983,6 +40997,16 @@ public readonly struct MonsterSkillAnimation
         /// Deliveries are waiting in the collection.
         /// </summary>
             DeliveriesWaiting = 3,
+
+        /// <summary>
+        /// A listing sold; the proceeds were added to the inventory Zen.
+        /// </summary>
+            SoldToInventory = 4,
+
+        /// <summary>
+        /// A listing expired; the units were returned to the inventory.
+        /// </summary>
+            ExpiredToInventory = 5,
     }
 
     /// <summary>

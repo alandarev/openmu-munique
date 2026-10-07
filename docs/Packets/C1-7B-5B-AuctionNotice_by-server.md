@@ -29,6 +29,8 @@ Defines the kind of an auction notice.
 
 | Value | Name | Description |
 |-------|------|-------------|
-| 1 | Sold | A listing sold. |
-| 2 | Expired | A listing expired. |
+| 1 | Sold | A listing sold; the proceeds are in the collection. |
+| 2 | Expired | A listing expired; the units are in the collection. |
 | 3 | DeliveriesWaiting | Deliveries are waiting in the collection. |
+| 4 | SoldToInventory | A listing sold; the proceeds were added to the inventory Zen. |
+| 5 | ExpiredToInventory | A listing expired; the units were returned to the inventory. |

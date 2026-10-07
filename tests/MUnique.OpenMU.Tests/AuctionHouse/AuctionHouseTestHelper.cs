@@ -34,6 +34,7 @@ internal static class AuctionHouseTestHelper
         SaleFeeBasisPoints = 500,
         RefundPostingFeeOnCancel = true,
         DurationHours = [12, 24, 48, 72],
+        GoodsPriceSignificantDigits = 3,
         MaximumRequestsPerSecond = maximumRequestsPerSecond,
     };
 

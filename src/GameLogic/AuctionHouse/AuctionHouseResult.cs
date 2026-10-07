@@ -88,4 +88,9 @@ public enum AuctionHouseResult : byte
     /// An internal error occurred.
     /// </summary>
     InternalError = 15,
+
+    /// <summary>
+    /// A goods unit price has more significant digits than the rules allow.
+    /// </summary>
+    PriceNotOnStep = 16,
 }

@@ -19208,7 +19208,7 @@ public readonly ref struct AuctionHouseStateRef
     /// <summary>
     /// Gets the initial length of this data packet. When the size is dynamic, this value may be bigger than actually needed.
     /// </summary>
-    public static int Length => 32;
+    public static int Length => 33;
 
     /// <summary>
     /// Gets the header of this packet.
@@ -19329,6 +19329,15 @@ public readonly ref struct AuctionHouseStateRef
     public Span<byte> Durations
     {
         get => this._data.Slice(28, 4);
+    }
+
+    /// <summary>
+    /// Gets or sets the count of significant digits which a goods unit price may have; 0 = any.
+    /// </summary>
+    public byte GoodsPriceDigits
+    {
+        get => this._data[32];
+        set => this._data[32] = value;
     }
 
     /// <summary>

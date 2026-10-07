@@ -61,6 +61,7 @@ public class AuctionHouseViewFixtureTest
             SaleFeeBasisPoints = 500,
             RefundPostingFeeOnCancel = true,
             DurationHours = [12, 24, 48, 72],
+            GoodsPriceSignificantDigits = 3,
         };
         var state = AuctionBrokerState.Create(rules, int.MaxValue, new AuctionSellerSummary(3, 2));
 
@@ -262,6 +263,37 @@ public class AuctionHouseViewFixtureTest
     }
 
     /// <summary>
+    /// The notices of deliveries to the inventory are written with their kinds 4 and 5, in the layout of the fixtures.
+    /// </summary>
+    /// <param name="kind">The kind of the notice.</param>
+    /// <param name="expectedKind">The expected kind byte.</param>
+    [TestCase(AuctionHouseNoticeKind.SoldToInventory, 4)]
+    [TestCase(AuctionHouseNoticeKind.ExpiredToInventory, 5)]
+    public void NoticeToInventoryHasItsKind(AuctionHouseNoticeKind kind, byte expectedKind)
+    {
+        var notice = new AuctionHouseNotice(kind, JewelOfBless, 0, 8, 7_600_000, 2);
+        var expected = AuctionHousePacketFixtureTest.ReadFixture("auction-notice-sold.bin");
+        expected[4] = expectedKind;
+
+        AssertWritten(expected, target => ShowAuctionNoticePlugIn.Write(target, notice));
+    }
+
+    /// <summary>
+    /// A broker state without price step restriction announces 0 goods price digits.
+    /// </summary>
+    [Test]
+    public void StateOpenWithoutPriceStepsAnnouncesZeroDigits()
+    {
+        var rules = new AuctionHouseRules { GoodsPriceSignificantDigits = 0 };
+        var target = new byte[64];
+
+        var length = ShowAuctionHouseStatePlugIn.Write(target, AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None));
+
+        Assert.That(length, Is.EqualTo(33));
+        Assert.That(target[32], Is.EqualTo(0));
+    }
+
+    /// <summary>
     /// The sell check result of eligible goods is written as the fixture.
     /// </summary>
     [Test]
@@ -308,8 +340,10 @@ public class AuctionHouseViewFixtureTest
     }
 
     private static void AssertWritten(string fixtureName, WriteDelegate write)
+        => AssertWritten(AuctionHousePacketFixtureTest.ReadFixture(fixtureName), write);
+
+    private static void AssertWritten(byte[] expected, WriteDelegate write)
     {
-        var expected = AuctionHousePacketFixtureTest.ReadFixture(fixtureName);
         var target = new byte[1024];
         Array.Fill(target, (byte)0xCC);
 

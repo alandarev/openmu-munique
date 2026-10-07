@@ -13,7 +13,7 @@ Open: the client shows the auction house window with these rules. Closed: the cl
 | Index | Length | Data Type | Value | Description |
 |-------|--------|-----------|-------|-------------|
 | 0 | 1 |   Byte   | 0xC1  | [Packet type](PacketTypes.md) |
-| 1 | 1 |    Byte   |   32   | Packet header - length of the packet |
+| 1 | 1 |    Byte   |   33   | Packet header - length of the packet |
 | 2 | 1 |    Byte   | 0x7B  | Packet header - packet type identifier |
 | 3 | 1 |    Byte   | 0x50  | Packet header - sub packet type identifier |
 | 4 | 1 | AuctionHouseWindowState |  | State; The state of the auction house window. When closed, all following fields are 0. |
@@ -29,6 +29,7 @@ Open: the client shows the auction house window with these rules. Closed: the cl
 | 26 | 1 | Byte |  | Flags; Bit 0: the posting fee is refunded on cancel. |
 | 27 | 1 | Byte |  | DurationCount; The count of offered durations, 1 to 4. |
 | 28 | 4 | Binary |  | Durations; The offered listing durations in hours; unused ones are 0. |
+| 32 | 1 | Byte |  | GoodsPriceDigits; The count of significant digits which a goods unit price may have; 0 = any. |
 
 ### AuctionHouseWindowState Enum
 

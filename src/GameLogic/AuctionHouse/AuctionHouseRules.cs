@@ -42,17 +42,17 @@ public class AuctionHouseRules
     /// <summary>
     /// Gets or sets the flat part of the posting fee in Zen.
     /// </summary>
-    public uint PostingFeeFlat { get; set; } = 30_000;
+    public uint PostingFeeFlat { get; set; }
 
     /// <summary>
     /// Gets or sets the part of the posting fee in basis points (1/10000) of the listing total.
     /// </summary>
-    public ushort PostingFeeBasisPoints { get; set; }
+    public ushort PostingFeeBasisPoints { get; set; } = 500;
 
     /// <summary>
     /// Gets or sets the sale fee in basis points (1/10000) of the gross of each sale.
     /// </summary>
-    public ushort SaleFeeBasisPoints { get; set; } = 200;
+    public ushort SaleFeeBasisPoints { get; set; } = 1_000;
 
     /// <summary>
     /// Gets or sets a value indicating whether the posting fee is refunded when a listing is cancelled.
@@ -62,7 +62,13 @@ public class AuctionHouseRules
     /// <summary>
     /// Gets or sets the offered listing durations in hours; one to <see cref="MaximumDurationCount"/> of them.
     /// </summary>
-    public List<byte> DurationHours { get; set; } = [12, 24, 48, 72];
+    public List<byte> DurationHours { get; set; } = [48];
+
+    /// <summary>
+    /// Gets or sets the count of significant digits which a goods unit price may have, so that sellers can't
+    /// undercut each other by a single Zen; 0 means no restriction. See <see cref="AuctionHouseFees.IsOnPriceStep"/>.
+    /// </summary>
+    public byte GoodsPriceSignificantDigits { get; set; } = 3;
 
     /// <summary>
     /// Gets or sets the maximum count of auction house requests per second of a player;
