@@ -5,6 +5,7 @@
 namespace MUnique.OpenMU.GameLogic.PlayerActions.PlayerStore;
 
 using MUnique.OpenMU.DataModel.Configuration.Items;
+using MUnique.OpenMU.GameLogic.AuctionHouse;
 using MUnique.OpenMU.GameLogic.Views.PlayerShop;
 
 /// <summary>
@@ -24,6 +25,13 @@ public class OpenStoreAction
         if (character is null)
         {
             player.Logger.LogWarning("OpenStore request failed: No character selected.");
+            return;
+        }
+
+        if (AuctionBrokerSession.IsBrokerOpen(player) || player.OpenedNpc?.Definition.NpcWindow == NpcWindow.AuctionHouse)
+        {
+            // Like the other refusals, nothing is sent: a player at an auction house broker has no open store.
+            player.Logger.LogWarning("OpenStore request failed: The auction house broker is open. Player: [{0}], StoreName: [{1}]", character.Name, storeName);
             return;
         }
 

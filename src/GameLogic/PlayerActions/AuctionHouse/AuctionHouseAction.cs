@@ -6,6 +6,7 @@ namespace MUnique.OpenMU.GameLogic.PlayerActions.AuctionHouse;
 
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.GameLogic.AuctionHouse;
+using MUnique.OpenMU.GameLogic.PlayerActions.PlayerStore;
 using MUnique.OpenMU.GameLogic.Views.AuctionHouse;
 
 /// <summary>
@@ -46,12 +47,21 @@ public class AuctionHouseAction
 
     private const byte MaximumSocketCount = 5;
 
+    private readonly CloseStoreAction _closeStoreAction = new();
+
     /// <summary>
     /// Opens the broker of the auction house NPC which the player talks to, and sends its state "open".
+    /// The personal store of the player is closed first: a player at a broker has no open store, so that nothing of
+    /// the inventory leaves it by a store purchase while the market moves items and Zen of the player.
     /// </summary>
     /// <param name="player">The player.</param>
     public async ValueTask OpenBrokerAsync(Player player)
     {
+        if (player.ShopStorage?.StoreOpen ?? false)
+        {
+            await this._closeStoreAction.CloseStoreAsync(player).ConfigureAwait(false);
+        }
+
         AuctionBrokerSession.Of(player).Open();
         await SendOpenedStateAsync(player, GetMarket(player)).ConfigureAwait(false);
     }
