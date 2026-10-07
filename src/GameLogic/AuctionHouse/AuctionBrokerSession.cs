@@ -29,10 +29,18 @@ public sealed class AuctionBrokerSession
 
     private int _isOpen;
 
+    private int _isQuarantined;
+
     /// <summary>
     /// Gets a value indicating whether the broker dialog of the player is open.
     /// </summary>
     public bool IsOpen => Volatile.Read(ref this._isOpen) == 1;
+
+    /// <summary>
+    /// Gets a value indicating whether the auction house refuses the requests of the player, because the outcome of one
+    /// of its transactions is unknown; the player gets disconnected.
+    /// </summary>
+    public bool IsQuarantined => Volatile.Read(ref this._isQuarantined) == 1;
 
     /// <summary>
     /// Gets the lock which lets the requests of the player be processed one at a time, in arrival order.
@@ -59,6 +67,12 @@ public sealed class AuctionBrokerSession
                && player.PlayerState.CurrentState == PlayerState.NpcDialogOpened
                && player.OpenedNpc?.Definition.NpcWindow == NpcWindow.AuctionHouse;
     }
+
+    /// <summary>
+    /// Refuses all further requests of the player.
+    /// </summary>
+    /// <returns><see langword="true"/>, if the player wasn't quarantined before.</returns>
+    public bool Quarantine() => Interlocked.Exchange(ref this._isQuarantined, 1) == 0;
 
     /// <summary>
     /// Marks the broker as open.

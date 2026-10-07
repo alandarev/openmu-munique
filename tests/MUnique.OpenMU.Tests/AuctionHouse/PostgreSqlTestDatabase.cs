@@ -27,9 +27,10 @@ internal sealed class PostgreSqlTestDatabase : IAsyncDisposable
 
     private static readonly TestConnectionSettingProvider SettingProvider = new();
 
-    private PostgreSqlTestDatabase(string databaseName)
+    private PostgreSqlTestDatabase(string databaseName, string connectionString)
     {
         this.DatabaseName = databaseName;
+        this.ConnectionString = connectionString;
         this.ContextProvider = new PersistenceContextProvider(new NullLoggerFactory(), null);
     }
 
@@ -37,6 +38,11 @@ internal sealed class PostgreSqlTestDatabase : IAsyncDisposable
     /// Gets the name of the database.
     /// </summary>
     public string DatabaseName { get; }
+
+    /// <summary>
+    /// Gets the connection string of the server's user to the database, for connections beside the contexts.
+    /// </summary>
+    public string ConnectionString { get; }
 
     /// <summary>
     /// Gets the persistence context provider which works on the database.
@@ -67,7 +73,7 @@ internal sealed class PostgreSqlTestDatabase : IAsyncDisposable
 
         var databaseName = "openmu_test_" + Guid.NewGuid().ToString("N");
         SettingProvider.Use(new NpgsqlConnectionStringBuilder(server), databaseName);
-        var database = new PostgreSqlTestDatabase(databaseName);
+        var database = new PostgreSqlTestDatabase(databaseName, new NpgsqlConnectionStringBuilder(server) { Database = databaseName }.ConnectionString);
         if (targetMigration is null)
         {
             using var update = await database.ContextProvider.ReCreateDatabaseAsync().ConfigureAwait(false);

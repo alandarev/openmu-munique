@@ -119,6 +119,12 @@ internal sealed class AuctionSellerDelivery
                     {
                         deliveredInFull = await this.ClaimAsync(seller, order).ConfigureAwait(false);
                     }
+                    catch (TransactionOutcomeUnknownException)
+                    {
+                        // The seller's state in memory may contradict the database: no notice, disconnect.
+                        AuctionHouseQuarantine.Quarantine(seller, this._logger);
+                        return;
+                    }
                     catch (Exception ex)
                     {
                         // The claim is rolled back; the entry waits in the collection, which the notice says.

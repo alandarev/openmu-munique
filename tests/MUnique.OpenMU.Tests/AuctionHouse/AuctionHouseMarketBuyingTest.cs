@@ -4,9 +4,11 @@
 
 namespace MUnique.OpenMU.Tests.AuctionHouse;
 
+using Moq;
 using MUnique.OpenMU.DataModel.Entities;
 using MUnique.OpenMU.GameLogic;
 using MUnique.OpenMU.GameLogic.AuctionHouse;
+using MUnique.OpenMU.GameLogic.Views.Inventory;
 using MUnique.OpenMU.Persistence;
 
 /// <summary>
@@ -327,6 +329,62 @@ public class AuctionHouseMarketBuyingTest
         var entry = (await this._helper.GetEntriesAsync(this._buyer.SelectedCharacter!).ConfigureAwait(false)).Single();
         Assert.That(entry.Quantity, Is.EqualTo(7));
         Assert.That(entry.Escrow!.Items, Has.Count.EqualTo(7));
+    }
+
+    /// <summary>
+    /// A view which fails after a committed goods purchase doesn't turn it into a refusal: the answer is still
+    /// <see cref="AuctionHouseResult.Success"/> with the paid amount.
+    /// </summary>
+    [Test]
+    public async Task FailingViewAfterCommitKeepsSuccessAsync()
+    {
+        await this.CreateGoodsListingAsync("seller", 10, 2_000_000).ConfigureAwait(false);
+        this._buyer.View<IItemAppearPlugIn>().Setup(v => v.ItemAppearAsync(It.IsAny<Item>())).Throws(new InvalidOperationException("Injected view failure."));
+
+        var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 3, 6_000_000)).ConfigureAwait(false);
+
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(outcome.Paid, Is.EqualTo(6_000_000));
+        Assert.That(this._buyer.Money, Is.EqualTo(1_000_000_000 - 6_000_000));
+        Assert.That(this._market.Index.Get((await this._helper.GetSalesAsync().ConfigureAwait(false)).Single().ListingId)?.RemainingQuantity, Is.EqualTo(7));
+    }
+
+    /// <summary>
+    /// A cheaper listing which is committed but not yet in the index of this market is taken by a goods purchase,
+    /// which is filled from the locked database rows; the buyer pays the lower total.
+    /// </summary>
+    [Test]
+    public async Task CheaperListingMissingInIndexIsTakenAsync()
+    {
+        var (_, dear) = await this.CreateGoodsListingAsync("dear", 10, 2_000_000).ConfigureAwait(false);
+        var otherMarket = new AuctionHouseMarket(this._helper.ContextProvider, this._helper.Configuration, new Microsoft.Extensions.Logging.Abstractions.NullLogger<AuctionHouseMarket>());
+        var (_, cheap) = await this.CreateGoodsListingAsync("cheap", 10, 1_500_000, otherMarket).ConfigureAwait(false);
+        Assert.That(this._market.Index.Get(cheap), Is.Null, "the cheaper listing isn't indexed by this market");
+
+        var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 4, 8_000_000)).ConfigureAwait(false);
+
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(outcome.Paid, Is.EqualTo(6_000_000));
+        Assert.That((await this._helper.GetListingAsync(cheap).ConfigureAwait(false))!.RemainingQuantity, Is.EqualTo(6));
+        Assert.That((await this._helper.GetListingAsync(dear).ConfigureAwait(false))!.RemainingQuantity, Is.EqualTo(10));
+        Assert.That(this._market.Index.Get(cheap)?.RemainingQuantity, Is.EqualTo(6), "the purchase taught the index");
+    }
+
+    /// <summary>
+    /// An item listing above the current maximum price, which the operator lowered after the listing was created, is
+    /// refused with <see cref="AuctionHouseResult.PriceOutOfRange"/> and changes nothing.
+    /// </summary>
+    [Test]
+    public async Task ItemListingAboveLoweredMaximumPriceIsRefusedAsync()
+    {
+        var (_, listingId, _) = await this.CreateItemListingAsync(1_500_000_000).ConfigureAwait(false);
+        this._helper.Rules.MaximumPrice = 1_000_000_000;
+
+        var outcome = await this._market.BuyListingAsync(this._buyer, new AuctionBuyListingOrder(listingId, 1_500_000_000)).ConfigureAwait(false);
+
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.PriceOutOfRange));
+        Assert.That(this._buyer.Money, Is.EqualTo(1_000_000_000));
+        Assert.That((await this._helper.GetListingAsync(listingId).ConfigureAwait(false))!.State, Is.EqualTo(AuctionListingState.Active));
     }
 
     private async ValueTask<(Player Seller, Guid ListingId, Item Item)> CreateItemListingAsync(uint price)

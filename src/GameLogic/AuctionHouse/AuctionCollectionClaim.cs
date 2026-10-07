@@ -82,20 +82,32 @@ internal sealed class AuctionCollectionClaim
                 }
 
                 var escrowSlot = item.ItemSlot;
+
+                // Registered before the mutation, so that it also repairs a mutation which failed half way: the
+                // inventory is cleaned at the target slot and the item returns to the escrow.
+                this._transaction.OnRollback(async () =>
+                {
+                    if (inventory.GetItem(slot) == item)
+                    {
+                        item.ItemSlot = slot;
+                        await inventory.RemoveItemAsync(item).ConfigureAwait(false);
+                    }
+
+                    item.ItemSlot = escrowSlot;
+                    if (!escrow.Items.Contains(item))
+                    {
+                        escrow.Items.Add(item);
+                    }
+                });
                 escrow.Items.Remove(item);
                 if (!await inventory.AddItemAsync(slot, item).ConfigureAwait(false))
                 {
+                    item.ItemSlot = escrowSlot;
                     escrow.Items.Add(item);
                     this.KeptBack |= AuctionHouseKeptBack.InventorySpace;
                     continue;
                 }
 
-                this._transaction.OnRollback(async () =>
-                {
-                    await inventory.RemoveItemAsync(item).ConfigureAwait(false);
-                    item.ItemSlot = escrowSlot;
-                    escrow.Items.Add(item);
-                });
                 this._addedItems.Add(item);
                 moved++;
             }

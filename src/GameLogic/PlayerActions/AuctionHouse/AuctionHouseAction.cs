@@ -346,6 +346,13 @@ public class AuctionHouseAction
         }
 
         var session = AuctionBrokerSession.Of(player);
+        if (session.IsQuarantined)
+        {
+            // The outcome of a transaction of the player is unknown; the player is being disconnected.
+            await answer(refuse(AuctionHouseResult.InternalError)).ConfigureAwait(false);
+            return;
+        }
+
         var rules = GetRules(player);
         if (!session.TryTakeRequest(rules.MaximumRequestsPerSecond))
         {

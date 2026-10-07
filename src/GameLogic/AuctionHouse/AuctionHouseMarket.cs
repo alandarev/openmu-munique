@@ -115,7 +115,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         AuctionListing? lockedListing = null;
         AuctionCollectionClaim? claim = null;
         AuctionSellerDeliveryOrder? delivery = null;
-        var outcome = await RunTransactionAsync(player, async transaction =>
+        var outcome = await this.RunTransactionAsync(player, () => [order.ListingId], async transaction =>
         {
             var listing = (await transaction.LockAsync<AuctionListing>([order.ListingId]).ConfigureAwait(false)).FirstOrDefault();
             lockedListing = listing;
@@ -133,6 +133,12 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                 return Refused(AuctionHouseResult.OwnListing, order.ListingId);
             }
 
+            if (listing.UnitPrice <= 0 || listing.UnitPrice > GetMaximumPrice(player))
+            {
+                // The maximum price of the rules was lowered after the listing was created.
+                return Refused(AuctionHouseResult.PriceOutOfRange, order.ListingId);
+            }
+
             var price = (uint)listing.UnitPrice;
             if (price != order.ReviewedPrice)
             {
@@ -146,9 +152,10 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             }
 
             var now = this.Now;
+            var proceedsEntries = await LockProceedsEntriesAsync(player.PersistenceContext, transaction, [listing]).ConfigureAwait(false);
             Pay(transaction, wallet, price);
             var purchase = CreateEntry(player.PersistenceContext, transaction, AuctionHouseCollectionEntryKind.Purchase, characterId, listing, now, true);
-            delivery = await SettleSaleAsync(player, transaction, rules, listing, 1, purchase, now).ConfigureAwait(false);
+            delivery = SettleSale(player, transaction, rules, listing, 1, purchase, proceedsEntries, now);
             purchase.Quantity = 1;
 
             claim = new AuctionCollectionClaim(player, transaction);
@@ -164,15 +171,18 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             return new AuctionBuyListingOutcome(AuctionHouseResult.Success, order.ListingId, price, delivered > 0 ? AuctionHouseDelivery.Inventory : AuctionHouseDelivery.Collection);
         }).ConfigureAwait(false);
 
-        if (lockedListing is not null)
+        await this.AfterCommitAsync(async () =>
         {
-            this.Index.Apply(lockedListing);
-        }
+            if (lockedListing is not null)
+            {
+                this.Index.Apply(lockedListing);
+            }
 
-        if (claim is not null)
-        {
-            await claim.ShowChangesAsync().ConfigureAwait(false);
-        }
+            if (claim is not null)
+            {
+                await claim.ShowChangesAsync().ConfigureAwait(false);
+            }
+        }).ConfigureAwait(false);
 
         if (delivery is not null)
         {
@@ -214,10 +224,19 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         var deliveries = new List<AuctionSellerDeliveryOrder>();
         AuctionCollectionClaim? claim = null;
         var staleIndex = false;
-        var outcome = await RunTransactionAsync(player, async transaction =>
+        var outcome = await this.RunTransactionAsync(player, () => lockedListings.Select(listing => listing.GetId()), async transaction =>
         {
             var now = this.Now;
-            lockedListings = await transaction.LockAsync<AuctionListing>(fill.Parts.Select(part => part.Listing.Id)).ConfigureAwait(false);
+
+            // The fill is chosen from locked rows, not from the index: every active listing of the goods which could
+            // take part at a price up to the highest one of the index's fill, so that a cheaper listing which isn't
+            // indexed yet isn't passed over. The index only pre-checked the purchase.
+            var highestUnitPrice = fill.Parts.Max(part => part.Listing.UnitPrice);
+            var candidateIds = await player.PersistenceContext.GetActiveGoodsListingIdsAsync(group, number, order.Level, characterId, highestUnitPrice, now).ConfigureAwait(false);
+
+            // The listings of the index's fill are locked too (in the same ordered set), so that the index learns their
+            // state when they don't qualify anymore.
+            lockedListings = await transaction.LockAsync<AuctionListing>(candidateIds.Union(fill.Parts.Select(part => part.Listing.Id))).ConfigureAwait(false);
             var available = lockedListings
                 .Where(listing => listing.State == AuctionListingState.Active
                                   && listing.Kind == AuctionHouseListingKind.Goods
@@ -226,6 +245,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                                   && listing.ItemLevel == order.Level
                                   && listing.SellerCharacterId != characterId
                                   && listing.RemainingQuantity > 0
+                                  && listing.UnitPrice <= highestUnitPrice
                                   && AuctionHouseTimes.ToUtc(listing.ExpiresAt) > now)
                 .Select(AuctionIndexedListing.Of);
             var lockedFill = AuctionGoodsFill.Create(available, order.Quantity);
@@ -252,13 +272,13 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                 return Refused(AuctionHouseResult.InsufficientZen);
             }
 
+            var soldListings = lockedFill.Parts.Select(part => lockedListings.First(listing => listing.GetId() == part.Listing.Id)).ToList();
+            var proceedsEntries = await LockProceedsEntriesAsync(player.PersistenceContext, transaction, soldListings).ConfigureAwait(false);
             Pay(transaction, wallet, total);
-            var firstListing = lockedListings.First(listing => listing.GetId() == lockedFill.Parts[0].Listing.Id);
-            var purchase = CreateEntry(player.PersistenceContext, transaction, AuctionHouseCollectionEntryKind.Purchase, characterId, firstListing, now, true);
-            foreach (var (part, units) in lockedFill.Parts)
+            var purchase = CreateEntry(player.PersistenceContext, transaction, AuctionHouseCollectionEntryKind.Purchase, characterId, soldListings[0], now, true);
+            for (var i = 0; i < soldListings.Count; i++)
             {
-                var listing = lockedListings.First(l => l.GetId() == part.Id);
-                deliveries.Add(await SettleSaleAsync(player, transaction, rules, listing, (int)units, purchase, now).ConfigureAwait(false));
+                deliveries.Add(SettleSale(player, transaction, rules, soldListings[i], (int)lockedFill.Parts[i].Units, purchase, proceedsEntries, now));
             }
 
             purchase.Quantity = (int)order.Quantity;
@@ -277,15 +297,18 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             return new AuctionBuyGoodsOutcome(AuctionHouseResult.Success, order.ItemType, order.Level, order.Quantity, total, delivered, order.Quantity - delivered);
         }).ConfigureAwait(false);
 
-        foreach (var listing in lockedListings)
+        await this.AfterCommitAsync(async () =>
         {
-            this.Index.Apply(listing);
-        }
+            foreach (var listing in lockedListings)
+            {
+                this.Index.Apply(listing);
+            }
 
-        if (claim is not null)
-        {
-            await claim.ShowChangesAsync().ConfigureAwait(false);
-        }
+            if (claim is not null)
+            {
+                await claim.ShowChangesAsync().ConfigureAwait(false);
+            }
+        }).ConfigureAwait(false);
 
         if (outcome.Result == AuctionHouseResult.Success)
         {
@@ -385,7 +408,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
         await this.EnsureIndexLoadedAsync().ConfigureAwait(false);
         AuctionListing? createdListing = null;
-        var outcome = await RunTransactionAsync(player, async transaction =>
+        var outcome = await this.RunTransactionAsync(player, () => createdListing is null ? [] : [createdListing.GetId()], async transaction =>
         {
             var context = player.PersistenceContext;
             var activeListings = await context.GetActiveAuctionListingCountAsync(characterId).ConfigureAwait(false);
@@ -408,7 +431,6 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
             var now = this.Now;
             var listing = context.CreateNew<AuctionListing>();
-            transaction.OnRollback(async () => await context.DeleteAsync(listing).ConfigureAwait(false));
             transaction.DetachWhenCompleted(listing);
             listing.SellerCharacterId = characterId;
             listing.SellerName = character.Name;
@@ -430,13 +452,21 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             foreach (var unit in units)
             {
                 var slot = unit.ItemSlot;
-                await inventory.RemoveItemAsync(unit).ConfigureAwait(false);
-                escrow.Items.Add(unit);
+
+                // Registered before the mutation, so that it also repairs a mutation which failed half way.
                 transaction.OnRollback(async () =>
                 {
                     escrow.Items.Remove(unit);
-                    await inventory.AddItemAsync(slot, unit).ConfigureAwait(false);
+                    unit.ItemSlot = slot;
+                    if (inventory.GetItem(slot) != unit)
+                    {
+                        // Removed completely or half way (the slot was cleared first): put it back once.
+                        wallet.Items.Remove(unit);
+                        await inventory.AddItemAsync(slot, unit).ConfigureAwait(false);
+                    }
                 });
+                await inventory.RemoveItemAsync(unit).ConfigureAwait(false);
+                escrow.Items.Add(unit);
             }
 
             createdListing = listing;
@@ -454,13 +484,16 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
         if (createdListing is not null)
         {
-            this.Index.Apply(createdListing);
-            foreach (var unit in units)
+            await this.AfterCommitAsync(async () =>
             {
-                await player.InvokeViewPlugInAsync<IItemRemovedPlugIn>(p => p.RemoveItemAsync(unit.ItemSlot)).ConfigureAwait(false);
-            }
+                this.Index.Apply(createdListing);
+                foreach (var unit in units)
+                {
+                    await player.InvokeViewPlugInAsync<IItemRemovedPlugIn>(p => p.RemoveItemAsync(unit.ItemSlot)).ConfigureAwait(false);
+                }
 
-            await player.InvokeViewPlugInAsync<IUpdateMoneyPlugIn>(p => p.UpdateMoneyAsync()).ConfigureAwait(false);
+                await player.InvokeViewPlugInAsync<IUpdateMoneyPlugIn>(p => p.UpdateMoneyAsync()).ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
 
         return outcome;
@@ -476,7 +509,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
         AuctionListing? lockedListing = null;
         AuctionCollectionClaim? claim = null;
-        var outcome = await RunTransactionAsync(player, async transaction =>
+        var outcome = await this.RunTransactionAsync(player, () => [order.ListingId], async transaction =>
         {
             var listing = (await transaction.LockAsync<AuctionListing>([order.ListingId]).ConfigureAwait(false)).FirstOrDefault();
             lockedListing = listing;
@@ -507,15 +540,18 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             return new AuctionCancelListingOutcome(AuctionHouseResult.Success, order.ListingId, toInventory, (uint)remaining - toInventory, refund);
         }).ConfigureAwait(false);
 
-        if (lockedListing is not null)
+        await this.AfterCommitAsync(async () =>
         {
-            this.Index.Apply(lockedListing);
-        }
+            if (lockedListing is not null)
+            {
+                this.Index.Apply(lockedListing);
+            }
 
-        if (claim is not null)
-        {
-            await claim.ShowChangesAsync().ConfigureAwait(false);
-        }
+            if (claim is not null)
+            {
+                await claim.ShowChangesAsync().ConfigureAwait(false);
+            }
+        }).ConfigureAwait(false);
 
         return outcome;
     }
@@ -538,7 +574,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         var characterId = character.GetId();
 
         AuctionCollectionClaim? claim = null;
-        var outcome = await RunTransactionAsync(player, async transaction =>
+        var outcome = await this.RunTransactionAsync(player, () => [], async transaction =>
         {
             var allEntryIds = await player.PersistenceContext.GetAuctionCollectionEntryIdsAsync(characterId).ConfigureAwait(false);
             var entries = (await transaction.LockAsync<AuctionCollectionEntry>(order.EntryId is { } entryId ? [entryId] : allEntryIds).ConfigureAwait(false))
@@ -569,7 +605,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
         if (claim is not null)
         {
-            await claim.ShowChangesAsync().ConfigureAwait(false);
+            await this.AfterCommitAsync(() => claim.ShowChangesAsync()).ConfigureAwait(false);
         }
 
         return outcome;
@@ -623,7 +659,19 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                     break;
                 }
 
-                var (lockedListings, deliveries) = await ExpireAsync(context, dueIds, now).ConfigureAwait(false);
+                IReadOnlyList<AuctionListing> lockedListings;
+                List<AuctionSellerDeliveryOrder> deliveries;
+                try
+                {
+                    (lockedListings, deliveries) = await ExpireAsync(context, dueIds, now).ConfigureAwait(false);
+                }
+                catch (TransactionOutcomeUnknownException)
+                {
+                    // The market context refuses further transactions; the index gets the database's state.
+                    await this.ReloadListingsAsync(dueIds).ConfigureAwait(false);
+                    throw;
+                }
+
                 expiredCount += deliveries.Count;
 
                 // The batch is committed: what follows must not turn it into a failure.
@@ -747,7 +795,6 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     private static AuctionCollectionEntry CreateEntry(IPlayerContext context, IPersistenceTransaction transaction, AuctionHouseCollectionEntryKind kind, Guid ownerCharacterId, AuctionListing listing, DateTime now, bool withEscrow)
     {
         var entry = context.CreateNew<AuctionCollectionEntry>();
-        transaction.OnRollback(async () => await context.DeleteAsync(entry).ConfigureAwait(false));
         transaction.DetachWhenCompleted(entry);
         entry.OwnerCharacterId = ownerCharacterId;
         entry.Kind = kind;
@@ -768,13 +815,17 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     {
         foreach (var item in source.Items.Take(count).ToList())
         {
-            source.Items.Remove(item);
-            target.Items.Add(item);
+            // Registered before the mutation, so that it also repairs a mutation which failed half way.
             transaction.OnRollback(() =>
             {
                 target.Items.Remove(item);
-                source.Items.Add(item);
+                if (!source.Items.Contains(item))
+                {
+                    source.Items.Add(item);
+                }
             });
+            source.Items.Remove(item);
+            target.Items.Add(item);
         }
     }
 
@@ -826,15 +877,39 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     private static uint GetMaximumPrice(Player player)
         => AuctionBrokerState.Create(GetRules(player), player.GameContext.Configuration.MaximumInventoryMoney, AuctionSellerSummary.None).MaximumPrice;
 
-    private static ValueTask<T> RunTransactionAsync<T>(Player player, Func<IPersistenceTransaction, ValueTask<T>> operation)
-        => player.RunPersistenceExclusiveAsync(() => player.PersistenceContext.RunInTransactionAsync(operation));
+    /// <summary>
+    /// Locks the existing proceeds entries of locked listings, all at once and ordered by id, so that the lock order
+    /// of the entries is the same in every transaction (a claim of all entries locks them the same way).
+    /// </summary>
+    /// <remarks>
+    /// The listing locks serialize every purchase of these listings, so no other proceeds entry of them can be created
+    /// meanwhile; an entry which a claim deleted meanwhile is left out and created again.
+    /// </remarks>
+    /// <returns>The locked proceeds entries by listing id.</returns>
+    private static async ValueTask<Dictionary<Guid, AuctionCollectionEntry>> LockProceedsEntriesAsync(IPlayerContext context, IPersistenceTransaction transaction, IReadOnlyList<AuctionListing> listings)
+    {
+        var ids = new List<Guid>();
+        foreach (var listing in listings)
+        {
+            ids.AddRange(await context.GetAuctionCollectionEntryIdsAsync(listing.SellerCharacterId, listing.GetId(), AuctionHouseCollectionEntryKind.Proceeds).ConfigureAwait(false));
+        }
+
+        var entries = await transaction.LockAsync<AuctionCollectionEntry>(ids).ConfigureAwait(false);
+        var result = new Dictionary<Guid, AuctionCollectionEntry>();
+        foreach (var entry in entries.Where(entry => entry.Kind == AuctionHouseCollectionEntryKind.Proceeds))
+        {
+            result.TryAdd(entry.ListingId, entry);
+        }
+
+        return result;
+    }
 
     /// <summary>
     /// Sells units of a locked listing into the buyer's purchase entry: moves the items, reduces the listing,
     /// accumulates the proceeds in the seller's proceeds entry and records the sale.
     /// </summary>
     /// <returns>The delivery of the proceeds to the seller, to start after the commit.</returns>
-    private static async ValueTask<AuctionSellerDeliveryOrder> SettleSaleAsync(Player buyer, IPersistenceTransaction transaction, AuctionHouseRules rules, AuctionListing listing, int units, AuctionCollectionEntry purchase, DateTime now)
+    private static AuctionSellerDeliveryOrder SettleSale(Player buyer, IPersistenceTransaction transaction, AuctionHouseRules rules, AuctionListing listing, int units, AuctionCollectionEntry purchase, Dictionary<Guid, AuctionCollectionEntry> proceedsEntries, DateTime now)
     {
         var context = buyer.PersistenceContext;
         MoveItems(transaction, listing.Escrow!, purchase.Escrow!, units);
@@ -856,14 +931,10 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         var fee = AuctionHouseFees.GetSaleFee(gross, rules.SaleFeeBasisPoints);
         var listingId = listing.GetId();
 
-        // The listing lock serializes every purchase of this listing, so there is at most one proceeds entry to find.
-        var proceedsIds = await context.GetAuctionCollectionEntryIdsAsync(listing.SellerCharacterId, listingId, AuctionHouseCollectionEntryKind.Proceeds).ConfigureAwait(false);
-        var proceeds = proceedsIds.Count > 0
-            ? (await transaction.LockAsync<AuctionCollectionEntry>(proceedsIds).ConfigureAwait(false)).FirstOrDefault()
-            : null;
-        if (proceeds is null)
+        if (!proceedsEntries.TryGetValue(listingId, out var proceeds))
         {
             proceeds = CreateEntry(context, transaction, AuctionHouseCollectionEntryKind.Proceeds, listing.SellerCharacterId, listing, now, false);
+            proceedsEntries[listingId] = proceeds;
         }
 
         var (oldQuantity, oldGross, oldFee, oldMoney, oldUpdatedAt) = (proceeds.Quantity, proceeds.Gross, proceeds.Fee, proceeds.UncollectedMoney, proceeds.UpdatedAt);
@@ -883,7 +954,6 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
         });
 
         var sale = context.CreateNew<AuctionSale>();
-        transaction.OnRollback(async () => await context.DeleteAsync(sale).ConfigureAwait(false));
         transaction.DetachWhenCompleted(sale);
         sale.SoldAt = now;
         sale.ListingId = listingId;
@@ -929,6 +999,76 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             {
                 this._logger.LogError(ex, "Error while starting the delivery of the auction house collection entry {entry} to {seller}.", delivery.EntryId, delivery.CharacterName);
             }
+        }
+    }
+
+    /// <summary>
+    /// Runs a market operation of a player as one transaction in the player's context, inside the player's persistence
+    /// section. When the outcome of the commit is unknown, the player is quarantined and disconnected, and the index
+    /// gets the database's state of the affected listings; the exception is passed on, so the request is answered
+    /// with <see cref="AuctionHouseResult.InternalError"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the result.</typeparam>
+    /// <param name="player">The player.</param>
+    /// <param name="affectedListingIds">Gets the ids of the listings which the operation changed or locked.</param>
+    /// <param name="operation">The operation.</param>
+    /// <returns>The result of the operation.</returns>
+    private async ValueTask<T> RunTransactionAsync<T>(Player player, Func<IEnumerable<Guid>> affectedListingIds, Func<IPersistenceTransaction, ValueTask<T>> operation)
+    {
+        try
+        {
+            return await player.RunPersistenceExclusiveAsync(() => player.PersistenceContext.RunInTransactionAsync(operation)).ConfigureAwait(false);
+        }
+        catch (TransactionOutcomeUnknownException)
+        {
+            AuctionHouseQuarantine.Quarantine(player, this._logger);
+            await this.ReloadListingsAsync(affectedListingIds()).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Applies the database's state of listings to the index, e.g. after a commit with unknown outcome.
+    /// </summary>
+    /// <param name="listingIds">The listing ids.</param>
+    /// <returns>The task.</returns>
+    private async ValueTask ReloadListingsAsync(IEnumerable<Guid> listingIds)
+    {
+        try
+        {
+            var ids = listingIds.Distinct().ToList();
+            if (ids.Count == 0)
+            {
+                return;
+            }
+
+            using var context = this._persistenceContextProvider.CreateNewPlayerContext(this._gameConfiguration);
+            foreach (var listing in await context.GetAuctionListingsAsync(ids).ConfigureAwait(false))
+            {
+                this.Index.Apply(listing);
+            }
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Error while reloading auction listings into the index.");
+        }
+    }
+
+    /// <summary>
+    /// Runs work after the commit of an operation (index publication, views); a failure is logged, never thrown,
+    /// because the committed outcome must be answered.
+    /// </summary>
+    /// <param name="action">The work.</param>
+    /// <returns>The task.</returns>
+    private async ValueTask AfterCommitAsync(Func<ValueTask> action)
+    {
+        try
+        {
+            await action().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Error after the commit of an auction house operation; its outcome stays.");
         }
     }
 }

@@ -10,10 +10,17 @@ using MUnique.OpenMU.Persistence;
 /// The in-memory read model of the active listings of a market. It is updated only after a change was committed, so it
 /// can lag behind the database for a moment; every write re-validates against the locked rows.
 /// </summary>
+/// <remarks>
+/// Publication is monotonic, because the snapshots of several committed transactions can arrive in any order: the
+/// remaining quantity of a listing only decreases, and a listing which left the active state stays removed (its id is
+/// kept as a tombstone until the next <see cref="Reset"/>). An older snapshot therefore can't resurrect a sold, cancelled
+/// or expired listing, nor raise its remaining quantity.
+/// </remarks>
 public sealed class AuctionListingIndex
 {
     private readonly object _syncRoot = new();
     private readonly Dictionary<Guid, AuctionIndexedListing> _listings = [];
+    private readonly HashSet<Guid> _removedListings = [];
 
     /// <summary>
     /// Gets the count of active listings.
@@ -38,6 +45,7 @@ public sealed class AuctionListingIndex
         lock (this._syncRoot)
         {
             this._listings.Clear();
+            this._removedListings.Clear();
             foreach (var listing in listings)
             {
                 this._listings[listing.Id] = listing;
@@ -46,25 +54,33 @@ public sealed class AuctionListingIndex
     }
 
     /// <summary>
-    /// Applies the committed state of a listing: an active listing is added or replaced, any other is removed.
+    /// Applies a committed state of a listing, monotonically: an active listing is added, or replaced when it holds
+    /// fewer remaining units than the indexed state; any other state removes the listing for good. Older states are
+    /// ignored.
     /// </summary>
     /// <param name="listing">The listing, as committed.</param>
     public void Apply(AuctionListing listing)
     {
         var id = listing.GetId();
-        if (listing.State == AuctionListingState.Active && listing.RemainingQuantity > 0)
+        var isActive = listing.State == AuctionListingState.Active && listing.RemainingQuantity > 0;
+        var indexed = isActive ? AuctionIndexedListing.Of(listing) : null;
+        lock (this._syncRoot)
         {
-            var indexed = AuctionIndexedListing.Of(listing);
-            lock (this._syncRoot)
+            if (this._removedListings.Contains(id))
             {
-                this._listings[id] = indexed;
+                return;
             }
-        }
-        else
-        {
-            lock (this._syncRoot)
+
+            if (indexed is null)
             {
                 this._listings.Remove(id);
+                this._removedListings.Add(id);
+                return;
+            }
+
+            if (!this._listings.TryGetValue(id, out var current) || indexed.RemainingQuantity < current.RemainingQuantity)
+            {
+                this._listings[id] = indexed;
             }
         }
     }

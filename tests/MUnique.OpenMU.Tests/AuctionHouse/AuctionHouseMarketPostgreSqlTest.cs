@@ -5,6 +5,7 @@
 namespace MUnique.OpenMU.Tests.AuctionHouse;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using MUnique.OpenMU.DataModel.Configuration;
 using MUnique.OpenMU.DataModel.Configuration.Items;
@@ -179,9 +180,14 @@ public class AuctionHouseMarketPostgreSqlTest
         var second = await this.CreatePlayerAsync("second", 50_000_000).ConfigureAwait(false);
         var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
 
-        var outcomes = await Task.WhenAll(
+        // A third connection holds the listing row, so that both purchases provably run at the same time.
+        await using var barrier = await RowLockBarrier.HoldAsync(this._database, "AuctionListing", created.ListingId).ConfigureAwait(false);
+        var buying = Task.WhenAll(
             Task.Run(async () => await this._market.BuyListingAsync(first, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false)),
-            Task.Run(async () => await this._market.BuyListingAsync(second, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false))).ConfigureAwait(false);
+            Task.Run(async () => await this._market.BuyListingAsync(second, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false)));
+        await barrier.WaitForWaitersAsync(2).ConfigureAwait(false);
+        await barrier.ReleaseAsync().ConfigureAwait(false);
+        var outcomes = await buying.ConfigureAwait(false);
 
         Assert.That(outcomes.Select(outcome => outcome.Result), Is.EquivalentTo(new[] { AuctionHouseResult.Success, AuctionHouseResult.NotFound }));
         var (winner, loser) = outcomes[0].Result == AuctionHouseResult.Success ? (first, second) : (second, first);
@@ -207,15 +213,23 @@ public class AuctionHouseMarketPostgreSqlTest
         var dearSeller = await this.CreatePlayerAsync("dear", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 10)).ConfigureAwait(false);
         var first = await this.CreatePlayerAsync("first", 100_000_000).ConfigureAwait(false);
         var second = await this.CreatePlayerAsync("second", 100_000_000).ConfigureAwait(false);
-        await this._market.CreateListingAsync(cheapSeller, new AuctionCreateListingOrder(Slot, 10, 1_000_000, 48, 0)).ConfigureAwait(false);
-        await this._market.CreateListingAsync(dearSeller, new AuctionCreateListingOrder(Slot, 10, 1_100_000, 48, 0)).ConfigureAwait(false);
+        var cheap = await this._market.CreateListingAsync(cheapSeller, new AuctionCreateListingOrder(Slot, 10, 1_000_000, 48, 0)).ConfigureAwait(false);
+        var dear = await this._market.CreateListingAsync(dearSeller, new AuctionCreateListingOrder(Slot, 10, 1_100_000, 48, 0)).ConfigureAwait(false);
 
-        var outcomes = await Task.WhenAll(
+        // A third connection holds both listing rows, so that both purchases provably run at the same time.
+        await using var barrier = await RowLockBarrier.HoldAsync(this._database, "AuctionListing", cheap.ListingId, dear.ListingId).ConfigureAwait(false);
+        var buying = Task.WhenAll(
             Task.Run(async () => await this._market.BuyGoodsAsync(first, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 8, 20_000_000)).ConfigureAwait(false)),
-            Task.Run(async () => await this._market.BuyGoodsAsync(second, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 8, 20_000_000)).ConfigureAwait(false))).ConfigureAwait(false);
+            Task.Run(async () => await this._market.BuyGoodsAsync(second, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 8, 20_000_000)).ConfigureAwait(false)));
+        await barrier.WaitForWaitersAsync(2).ConfigureAwait(false);
+        await barrier.ReleaseAsync().ConfigureAwait(false);
+        var outcomes = await buying.ConfigureAwait(false);
 
-        Assert.That(outcomes.Select(outcome => outcome.Result), Has.Some.EqualTo(AuctionHouseResult.Success));
-        Assert.That(outcomes.Select(outcome => outcome.Result), Is.All.AnyOf(AuctionHouseResult.Success, AuctionHouseResult.QuoteChanged));
+        // Both buyers chose the cheap listing from the index. The fill comes from the locked rows priced up to that
+        // choice: the first one takes 8 cheap units, the later one finds only 2 left at that price and is answered
+        // QuoteChanged (a fresh quote follows in the action), never filled with dearer units it didn't review.
+        Assert.That(outcomes.Select(outcome => outcome.Result), Is.EquivalentTo(new[] { AuctionHouseResult.Success, AuctionHouseResult.QuoteChanged }));
+        Assert.That(outcomes.Single(outcome => outcome.Result == AuctionHouseResult.Success).Paid, Is.EqualTo(8_000_000));
         var buyers = new[] { first, second };
         uint soldUnits = 0;
         for (var i = 0; i < 2; i++)
@@ -241,8 +255,9 @@ public class AuctionHouseMarketPostgreSqlTest
     }
 
     /// <summary>
-    /// A failure of the commit after all in-memory changes (the database refuses the sale record) rolls everything
-    /// back: the buyer's Zen and inventory are restored, the listing is unchanged, and the next purchase succeeds.
+    /// A failure of the save before the commit, after all in-memory changes (the database refuses the sale record), rolls
+    /// everything back: the buyer's Zen and inventory are restored, the listing is unchanged, and the next purchase
+    /// succeeds.
     /// </summary>
     [Test]
     public async Task FailingCommitRestoresBuyerAndListingAsync()
@@ -389,6 +404,120 @@ public class AuctionHouseMarketPostgreSqlTest
         Assert.That(entries, Has.Count.EqualTo(3));
         Assert.That(entries.Sum(entry => entry.Quantity), Is.EqualTo(6));
         Assert.That(entries.Select(entry => entry.OwnerCharacterId).Distinct().Count(), Is.EqualTo(3));
+    }
+
+    /// <summary>
+    /// The commit of a purchase fails with unknown outcome. Whether the database committed (<paramref name="committed"/>)
+    /// or not, no restore runs, the player is quarantined and disconnected, every later save of the player is refused,
+    /// the index gets the database's state, and the next load of the buyer matches the database.
+    /// </summary>
+    /// <param name="committed">If set to <c>true</c>, the failure comes after the database committed; otherwise right before the commit.</param>
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CommitWithUnknownOutcomeQuarantinesBuyerAsync(bool committed)
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._kris, 1)).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 50_000_000).ConfigureAwait(false);
+        var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
+        var wallet = buyer.SelectedCharacter!.Inventory!;
+        ((Persistence.EntityFramework.EntityFrameworkContextBase)buyer.PersistenceContext).CommitFaultInjection = isCommitted =>
+            isCommitted == committed ? throw new TimeoutException("Injected loss of the commit acknowledgement.") : ValueTask.CompletedTask;
+
+        Assert.That(async () => await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false), Throws.InstanceOf<TransactionOutcomeUnknownException>());
+
+        Assert.That(AuctionBrokerSession.Of(buyer).IsQuarantined, Is.True);
+
+        // The wallet of the character, because the disconnection may already have deselected the character.
+        Assert.That(wallet.Money, Is.EqualTo(40_000_000), "no restore runs after a commit attempt");
+        var expectedMoney = committed ? 40_000_000 : 50_000_000;
+        Assert.That(this._market.Index.Get(created.ListingId) is null, Is.EqualTo(committed), "the index has the database's state");
+
+        // Whatever happens to the player in memory now, it is never saved over the database.
+        wallet.Money = 1;
+        Assert.That(await buyer.PersistenceContext.SaveChangesAsync().ConfigureAwait(false), Is.False);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!buyer.PlayerState.CurrentState.IsDisconnectedOrFinished() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20).ConfigureAwait(false);
+        }
+
+        Assert.That(buyer.PlayerState.CurrentState.IsDisconnectedOrFinished(), Is.True);
+
+        using var reload = this._database.ContextProvider.CreateNewPlayerContext(this._configuration);
+        var reloaded = (await reload.GetAccountByLoginNameAsync("buyer").ConfigureAwait(false))!.Characters.Single();
+        Assert.That(reloaded.Inventory!.Money, Is.EqualTo(expectedMoney));
+        Assert.That(reloaded.Inventory.Items.Count, Is.EqualTo(committed ? 1 : 0));
+        await using var data = this._database.CreateDataContext();
+        var listing = await data.Set<EfModel.AuctionListing>().SingleAsync().ConfigureAwait(false);
+        Assert.That(listing.State, Is.EqualTo(committed ? AuctionListingState.SoldOut : AuctionListingState.Active));
+        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+    }
+
+    /// <summary>
+    /// A goods purchase from two listings of a seller whose proceeds entries are in the opposite order of the fill, and
+    /// the seller's claim of all entries, run at the same time: both complete, without a deadlock.
+    /// </summary>
+    [Test]
+    public async Task PurchaseAndClaimAllOfProceedsDontDeadlockAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 6)).ConfigureAwait(false);
+        var earlyBuyer = await this.CreatePlayerAsync("early", 100_000_000).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 100_000_000).ConfigureAwait(false);
+        await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 3, 1_100_000, 48, 0)).ConfigureAwait(false);
+        Assert.That((await this._market.BuyGoodsAsync(earlyBuyer, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 1, 1_100_000)).ConfigureAwait(false)).Result, Is.EqualTo(AuctionHouseResult.Success));
+        await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot + 3, 3, 1_000_000, 48, 0)).ConfigureAwait(false);
+        Assert.That((await this._market.BuyGoodsAsync(earlyBuyer, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 1, 1_000_000)).ConfigureAwait(false)).Result, Is.EqualTo(AuctionHouseResult.Success));
+        Guid[] proceedsIds;
+        await using (var data = this._database.CreateDataContext())
+        {
+            proceedsIds = await data.Set<EfModel.AuctionCollectionEntry>().Where(entry => entry.Kind == AuctionHouseCollectionEntryKind.Proceeds).OrderBy(entry => entry.Id).Select(entry => entry.Id).ToArrayAsync().ConfigureAwait(false);
+        }
+
+        Assert.That(proceedsIds, Has.Length.EqualTo(2), "the dear listing's entry is older, the cheap one is filled first");
+        await using var barrier = await RowLockBarrier.HoldAsync(this._database, "AuctionCollectionEntry", proceedsIds).ConfigureAwait(false);
+        var buying = Task.Run(async () => await this._market.BuyGoodsAsync(buyer, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 3, 3_200_000)).ConfigureAwait(false));
+        var claiming = Task.Run(async () => await this._market.ClaimAsync(seller, new AuctionClaimOrder(null)).ConfigureAwait(false));
+        await barrier.WaitForWaitersAsync(2).ConfigureAwait(false);
+        await barrier.ReleaseAsync().ConfigureAwait(false);
+        var bought = await buying.ConfigureAwait(false);
+        var claimed = await claiming.ConfigureAwait(false);
+
+        Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(bought.Paid, Is.EqualTo(3_100_000));
+        Assert.That(claimed.Result, Is.EqualTo(AuctionHouseResult.Success));
+        await using var check = this._database.CreateDataContext();
+        var proceeds = await check.Set<EfModel.AuctionCollectionEntry>().Where(entry => entry.Kind == AuctionHouseCollectionEntryKind.Proceeds).ToListAsync().ConfigureAwait(false);
+        var collected = await this.GetDatabaseMoneyAsync(seller).ConfigureAwait(false) - (100_000_000 - 165_000 - 150_000);
+        Assert.That(collected + proceeds.Sum(entry => entry.UncollectedMoney), Is.EqualTo(4_680_000), "every proceed is either collected or waiting, once");
+    }
+
+    /// <summary>
+    /// The migration's Down deletes the escrow storages and their items before it drops the market tables.
+    /// </summary>
+    [Test]
+    public async Task MigrationDownDeletesEscrowAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 3)).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._kris, 32)).ConfigureAwait(false);
+        await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 2, 1_000_000, 48, 0)).ConfigureAwait(false);
+        await this._market.BuyGoodsAsync(buyer, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 1, 1_000_000)).ConfigureAwait(false);
+        await using (var data = this._database.CreateDataContext())
+        {
+            Assert.That(await data.Set<EfModel.AuctionCollectionEntry>().CountAsync(entry => entry.EscrowId != null).ConfigureAwait(false), Is.EqualTo(1), "the buyer's purchase waits with its item");
+            await data.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20260926142218_AddItemRuleFlags").ConfigureAwait(false);
+        }
+
+        await using var connection = new Npgsql.NpgsqlConnection(this._database.ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new Npgsql.NpgsqlCommand("""
+            SELECT (SELECT count(*) FROM data."Item"),
+                   (SELECT count(*) FROM data."ItemStorage" s WHERE NOT EXISTS (SELECT 1 FROM data."Character" c WHERE c."InventoryId" = s."Id")
+                                                            AND NOT EXISTS (SELECT 1 FROM data."Account" a WHERE a."VaultId" = s."Id"))
+            """, connection);
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+        Assert.That(await reader.ReadAsync().ConfigureAwait(false), Is.True);
+        Assert.That(reader.GetInt64(0), Is.EqualTo(1 + 32), "only the seller's unlisted jewel and the buyer's weapons remain");
+        Assert.That(reader.GetInt64(1), Is.Zero, "no orphan storage remains");
     }
 
     private static void AssertItemState(Item? item)

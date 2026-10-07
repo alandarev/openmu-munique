@@ -112,6 +112,25 @@ public class AuctionHouseActionTest
     }
 
     /// <summary>
+    /// A quarantined player, whose transaction ended with an unknown outcome, gets every request refused with
+    /// <see cref="AuctionHouseResult.InternalError"/> without reaching the market.
+    /// </summary>
+    [Test]
+    public async Task QuarantinedPlayerIsRefusedAsync()
+    {
+        var market = new Mock<IAuctionHouseMarket>(MockBehavior.Strict);
+        market.Setup(m => m.GetSellerSummaryAsync(It.IsAny<Player>())).ReturnsAsync(AuctionSellerSummary.None);
+        var player = await AuctionHouseTestHelper.CreatePlayerAsync(market.Object).ConfigureAwait(false);
+        await AuctionHouseTestHelper.OpenBrokerAsync(player).ConfigureAwait(false);
+        AuctionBrokerSession.Of(player).Quarantine();
+
+        await this._action.ClaimAsync(player, 8, new AuctionClaimOrder(null)).ConfigureAwait(false);
+
+        player.View<IShowAuctionClaimResultPlugIn>().Verify(v => v.ShowAuctionClaimResultAsync(8, It.Is<AuctionClaimOutcome>(o => o.Result == AuctionHouseResult.InternalError)), Times.Once);
+        market.Verify(m => m.ClaimAsync(It.IsAny<Player>(), It.IsAny<AuctionClaimOrder>()), Times.Never);
+    }
+
+    /// <summary>
     /// Requests above the configured rate are answered with <see cref="AuctionHouseResult.Busy"/> without reaching the market.
     /// </summary>
     [Test]
