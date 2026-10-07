@@ -613,4 +613,13 @@ public enum UpdateVersion
     /// at the merge into another tree.
     /// </remarks>
     AddAuctionHouseBroker = 10011,
+
+    /// <summary>
+    /// The version of the <see cref="MakeAuctionBrokerStationaryUpdatePlugIn"/>.
+    /// </summary>
+    /// <remarks>
+    /// A custom version outside of the upstream range; renumbered when it is taken by another custom update
+    /// at the merge into another tree.
+    /// </remarks>
+    MakeAuctionBrokerStationary = 10012,
 }

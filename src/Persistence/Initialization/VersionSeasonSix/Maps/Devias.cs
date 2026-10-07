@@ -44,6 +44,6 @@ internal class Devias : Version095d.Maps.Devias
         yield return this.CreateMonsterSpawn(39, this.NpcDictionary[229], 197, 48, Direction.SouthEast, SpawnTrigger.Wandering); // Marlon
         yield return this.CreateMonsterSpawn(40, this.NpcDictionary[233], 217, 29, Direction.SouthEast);
         yield return this.CreateMonsterSpawn(41, this.NpcDictionary[233], 217, 20, Direction.SouthEast);
-        yield return this.CreateMonsterSpawn(42, this.NpcDictionary[568], 225, 52, Direction.South, SpawnTrigger.Wandering); // Wandering Merchant Zyro
+        yield return this.CreateMonsterSpawn(42, this.NpcDictionary[568], 225, 52, Direction.South, SpawnTrigger.Automatic); // Wandering Merchant Zyro, stationary as the auction house broker
     }
 }

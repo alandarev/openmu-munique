@@ -85,6 +85,58 @@ internal class AuctionHouseBrokerDataTest
         Assert.That(feature.GetConfiguration<AuctionHouseRules>(null)!.SaleFeeBasisPoints, Is.EqualTo(1));
     }
 
+    /// <summary>
+    /// A new database has Zyro standing in Lorencia, Devias and Elbeland, not wandering between them.
+    /// </summary>
+    [Test]
+    public async Task NewDatabaseHasStationaryBrokerInThreeTownsAsync()
+    {
+        var gameConfiguration = await CreateConfigurationAsync(new InMemoryPersistenceContextProvider()).ConfigureAwait(false);
+
+        AssertStationaryBroker(gameConfiguration);
+    }
+
+    /// <summary>
+    /// The update turns Zyro's wandering spawns of an existing database into automatic ones, leaves the other wandering
+    /// merchants alone, and gives the same result when applied twice.
+    /// </summary>
+    [Test]
+    public async Task UpdateMakesBrokerStationaryIdempotentlyAsync()
+    {
+        var contextProvider = new InMemoryPersistenceContextProvider();
+        var gameConfiguration = await CreateConfigurationAsync(contextProvider).ConfigureAwait(false);
+        foreach (var spawn in GetZyroSpawns(gameConfiguration))
+        {
+            spawn.SpawnTrigger = SpawnTrigger.Wandering;
+        }
+
+        var otherWandering = gameConfiguration.Maps.SelectMany(map => map.MonsterSpawns)
+            .Where(spawn => spawn.SpawnTrigger == SpawnTrigger.Wandering && spawn.MonsterDefinition?.Number != ZyroNumber)
+            .ToList();
+        Assert.That(otherWandering, Is.Not.Empty, "the other wandering merchants");
+
+        var update = new MakeAuctionBrokerStationaryUpdatePlugIn();
+        for (var i = 0; i < 2; i++)
+        {
+            await update.ApplyUpdateAsync(contextProvider.CreateNewContext(), gameConfiguration).ConfigureAwait(false);
+            AssertStationaryBroker(gameConfiguration);
+        }
+
+        Assert.That(otherWandering.Select(spawn => spawn.SpawnTrigger), Is.All.EqualTo(SpawnTrigger.Wandering));
+        Assert.That(update.IsMandatory, Is.True);
+        Assert.That((int)UpdateVersion.MakeAuctionBrokerStationary, Is.EqualTo(10012));
+    }
+
+    private static List<MonsterSpawnArea> GetZyroSpawns(GameConfiguration gameConfiguration)
+        => gameConfiguration.Maps.SelectMany(map => map.MonsterSpawns).Where(spawn => spawn.MonsterDefinition?.Number == ZyroNumber).ToList();
+
+    private static void AssertStationaryBroker(GameConfiguration gameConfiguration)
+    {
+        var spawns = GetZyroSpawns(gameConfiguration);
+        Assert.That(spawns.Select(spawn => (spawn.GameMap!.Number, spawn.X1, spawn.Y1)), Is.EquivalentTo(new (short, byte, byte)[] { (0, 131, 139), (2, 225, 52), (51, 55, 199) }));
+        Assert.That(spawns.Select(spawn => spawn.SpawnTrigger), Is.All.EqualTo(SpawnTrigger.Automatic));
+    }
+
     private static async Task AssertBrokerAndActivePlugInsAsync(InMemoryPersistenceContextProvider contextProvider, GameConfiguration gameConfiguration)
     {
         var dataSource = new GameConfigurationDataSource(new NullLogger<GameConfigurationDataSource>(), contextProvider);
