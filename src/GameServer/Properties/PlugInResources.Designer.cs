@@ -2023,6 +2023,24 @@ namespace MUnique.OpenMU.GameServer.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Packet handler for the packets of features which the original game client doesn&apos;t have, under their dedicated head code (0x7B identifier)..
+        /// </summary>
+        public static string CustomGroupHandlerPlugIn_Description {
+            get {
+                return ResourceManager.GetString("CustomGroupHandlerPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Custom Packets Group.
+        /// </summary>
+        public static string CustomGroupHandlerPlugIn_Name {
+            get {
+                return ResourceManager.GetString("CustomGroupHandlerPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The default implementation of the IActivateMagicEffectPlugIn and IDeactivateMagicEffectPlugIn which is forwarding everything to the game client with specific data packets..
         /// </summary>
         public static string DeActivateMagicEffectPlugIn_Description {

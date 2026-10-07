@@ -2499,4 +2499,10 @@
   <data name="RaklionStateInfoRequestHandlerPlugIn_Description" xml:space="preserve">
     <value>Handles the request of the client for the state of the raklion event.</value>
   </data>
+  <data name="CustomGroupHandlerPlugIn_Name" xml:space="preserve">
+    <value>Custom Packets Group</value>
+  </data>
+  <data name="CustomGroupHandlerPlugIn_Description" xml:space="preserve">
+    <value>Packet handler for the packets of features which the original game client doesn't have, under their dedicated head code (0x7B identifier).</value>
+  </data>
 </root>
