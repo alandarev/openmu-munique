@@ -2909,6 +2909,294 @@ public static class ConnectionExtensions
     }
 
     /// <summary>
+    /// Sends a <see cref="AuctionGoodsQuoteRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="type">The item type, group * 512 + number.</param>
+    /// <param name="level">The item level.</param>
+    /// <param name="quantity">The requested quantity, at least 1.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player wants to know the price of a quantity of goods, before buying it.
+    /// Causes reaction on server side: The server answers with an AuctionGoodsQuote with the same request id: the cheapest price tiers, the fillable quantity and the exact total, without the own listings of the requester. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionGoodsQuoteRequestAsync(this IConnection? connection, ushort @requestId, ushort @type, byte @level, uint @quantity)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionGoodsQuoteRequestRef.Length;
+            var packet = new AuctionGoodsQuoteRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Type = @type;
+            packet.Level = @level;
+            packet.Quantity = @quantity;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionBuyListingRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="listingId">The id of the listing.</param>
+    /// <param name="reviewedPrice">The price in Zen which the player reviewed.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player buys an item listing, after reviewing its price.
+    /// Causes reaction on server side: The server completes the purchase if the listing is still active at the reviewed price, is not the own listing of the buyer and the buyer has enough Zen, and answers with an AuctionBuyListingResult with the same request id. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionBuyListingRequestAsync(this IConnection? connection, ushort @requestId, Memory<byte> @listingId, uint @reviewedPrice)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionBuyListingRequestRef.Length;
+            var packet = new AuctionBuyListingRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            @listingId.Span.CopyTo(packet.ListingId);
+            packet.ReviewedPrice = @reviewedPrice;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionBuyGoodsRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="type">The item type, group * 512 + number.</param>
+    /// <param name="level">The item level.</param>
+    /// <param name="quantity">The quantity to buy.</param>
+    /// <param name="reviewedTotal">The total in Zen which the player reviewed.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player buys a quantity of goods, after reviewing its total.
+    /// Causes reaction on server side: The server completes the purchase only for the full quantity at a current total not above the reviewed total, and answers with an AuctionBuyGoodsResult with the same request id. After QuoteChanged or InsufficientStock, a fresh AuctionGoodsQuote with the same request id follows. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionBuyGoodsRequestAsync(this IConnection? connection, ushort @requestId, ushort @type, byte @level, uint @quantity, uint @reviewedTotal)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionBuyGoodsRequestRef.Length;
+            var packet = new AuctionBuyGoodsRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Type = @type;
+            packet.Level = @level;
+            packet.Quantity = @quantity;
+            packet.ReviewedTotal = @reviewedTotal;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionCreateListingRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="inventorySlot">The inventory slot of the item; for goods, the identical loose units are taken starting with this slot.</param>
+    /// <param name="quantity">The quantity, 1 for an item listing.</param>
+    /// <param name="unitPrice">The price in Zen of one unit.</param>
+    /// <param name="durationHours">The duration in hours, one of the announced durations.</param>
+    /// <param name="expectedPostingFee">The posting fee in Zen which the player expects to pay.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player lists an item or a quantity of goods of the inventory in the auction house.
+    /// Causes reaction on server side: The server removes the listed units from the inventory, charges the posting fee and answers with an AuctionCreateListingResult with the same request id; or it refuses and changes nothing. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionCreateListingRequestAsync(this IConnection? connection, ushort @requestId, byte @inventorySlot, uint @quantity, uint @unitPrice, byte @durationHours, uint @expectedPostingFee)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionCreateListingRequestRef.Length;
+            var packet = new AuctionCreateListingRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.InventorySlot = @inventorySlot;
+            packet.Quantity = @quantity;
+            packet.UnitPrice = @unitPrice;
+            packet.DurationHours = @durationHours;
+            packet.ExpectedPostingFee = @expectedPostingFee;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionCancelListingRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="listingId">The id of the listing.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player cancels an own active listing.
+    /// Causes reaction on server side: The server ends the listing, returns the remaining units to the inventory as far as they fit, otherwise to the collection, and answers with an AuctionCancelListingResult with the same request id. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionCancelListingRequestAsync(this IConnection? connection, ushort @requestId, Memory<byte> @listingId)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionCancelListingRequestRef.Length;
+            var packet = new AuctionCancelListingRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            @listingId.Span.CopyTo(packet.ListingId);
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionOwnListingsRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player opens the list of the own listings.
+    /// Causes reaction on server side: The server answers with an AuctionOwnListings with the same request id. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionOwnListingsRequestAsync(this IConnection? connection, ushort @requestId)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionOwnListingsRequestRef.Length;
+            var packet = new AuctionOwnListingsRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionCollectionRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="page">The requested page, starting at 0.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player opens the collection, or turns its page.
+    /// Causes reaction on server side: The server answers with an AuctionCollection with the same request id. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionCollectionRequestAsync(this IConnection? connection, ushort @requestId, ushort @page)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionCollectionRequestRef.Length;
+            var packet = new AuctionCollectionRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Page = @page;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionClaimRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="entryId">The id of the collection entry; all zero = every entry.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player claims one entry or all entries of the collection.
+    /// Causes reaction on server side: The server moves items as far as they fit into the inventory and Zen as far as the inventory Zen limit allows, keeps the remainder in the collection, and answers with an AuctionClaimResult with the same request id. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionClaimRequestAsync(this IConnection? connection, ushort @requestId, Memory<byte> @entryId)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionClaimRequestRef.Length;
+            var packet = new AuctionClaimRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            @entryId.Span.CopyTo(packet.EntryId);
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionSellCheckRequest" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</param>
+    /// <param name="inventorySlot">The inventory slot.</param>
+    /// <remarks>
+    /// Is sent by the client when: The player wants to know whether the item of an inventory slot can be listed, before listing it.
+    /// Causes reaction on server side: The server answers with an AuctionSellCheckResult with the same request id. Every request without an open broker dialog is answered with NotOpen.
+    /// </remarks>
+    public static async ValueTask SendAuctionSellCheckRequestAsync(this IConnection? connection, ushort @requestId, byte @inventorySlot)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionSellCheckRequestRef.Length;
+            var packet = new AuctionSellCheckRequestRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.InventorySlot = @inventorySlot;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Sends a <see cref="HitRequest" /> to this connection.
     /// </summary>
     /// <param name="connection">The connection.</param>

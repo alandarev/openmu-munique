@@ -7345,6 +7345,985 @@
       </Structures>
     </Packet>
     <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>50</SubCode>
+      <Name>AuctionHouseState</Name>
+      <Length>32</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>Open: instead of the NPC window response, when a player talks to an NPC with the auction-house window, and again after a RulesChanged answer. Closed: whenever the broker dialog ends (the close request of the client, warp, death, logout, another dialog).</SentWhen>
+      <CausedReaction>Open: the client shows the auction house window with these rules. Closed: the client closes the auction house window.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionHouseWindowState</TypeName>
+          <Name>State</Name>
+          <Description>The state of the auction house window. When closed, all following fields are 0.</Description>
+        </Field>
+        <Field>
+          <Index>5</Index>
+          <Type>Byte</Type>
+          <Name>PageSize</Name>
+          <Description>The count of rows of a page.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Byte</Type>
+          <Name>MaxActiveListings</Name>
+          <Description>The maximum count of active listings of a seller.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Byte</Type>
+          <Name>ActiveListings</Name>
+          <Description>The count of active listings of the player.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>PendingCollection</Name>
+          <Description>The count of entries in the collection of the player.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ZenLimit</Name>
+          <Description>The Zen limit of the inventory, at most 2,147,483,647.</Description>
+        </Field>
+        <Field>
+          <Index>14</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>MaxPrice</Name>
+          <Description>The maximum price or total in Zen.</Description>
+        </Field>
+        <Field>
+          <Index>18</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>PostingFeeFlat</Name>
+          <Description>The flat part of the posting fee in Zen; 0 is allowed.</Description>
+        </Field>
+        <Field>
+          <Index>22</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>PostingFeeBasisPoints</Name>
+          <Description>The posting fee in basis points of quantity * unit price.</Description>
+        </Field>
+        <Field>
+          <Index>24</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>SaleFeeBasisPoints</Name>
+          <Description>The sale fee in basis points of the gross of a sale.</Description>
+        </Field>
+        <Field>
+          <Index>26</Index>
+          <Type>Byte</Type>
+          <Name>Flags</Name>
+          <Description>Bit 0: the posting fee is refunded on cancel.</Description>
+        </Field>
+        <Field>
+          <Index>27</Index>
+          <Type>Byte</Type>
+          <Name>DurationCount</Name>
+          <Description>The count of offered durations, 1 to 4.</Description>
+        </Field>
+        <Field>
+          <Index>28</Index>
+          <Type>Binary</Type>
+          <Name>Durations</Name>
+          <Description>The offered listing durations in hours; unused ones are 0.</Description>
+          <Length>4</Length>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C2HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>51</SubCode>
+      <Name>AuctionSearchResult</Name>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionSearchRequest.</SentWhen>
+      <CausedReaction>The client shows the item listings of the requested page.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>5</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Page</Name>
+          <Description>The page, starting at 0.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>TotalCount</Name>
+          <Description>The total count of matching listings.</Description>
+        </Field>
+        <Field>
+          <Index>14</Index>
+          <Type>Byte</Type>
+          <Name>Count</Name>
+          <Description>The count of rows.</Description>
+        </Field>
+        <Field>
+          <Index>15</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionSearchListing</TypeName>
+          <Name>Listings</Name>
+          <Description>The listings. Each row has a variable length, because of its item data.</Description>
+          <ItemCountField>Count</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionSearchListing</Name>
+          <Description>An item listing of an auction search result.</Description>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>Binary</Type>
+              <Name>ListingId</Name>
+              <Description>The id of the listing.</Description>
+              <Length>16</Length>
+            </Field>
+            <Field>
+              <Index>16</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Price</Name>
+              <Description>The price in Zen.</Description>
+            </Field>
+            <Field>
+              <Index>20</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>SecondsLeft</Name>
+              <Description>The remaining seconds of the listing.</Description>
+            </Field>
+            <Field>
+              <Index>24</Index>
+              <Type>String</Type>
+              <Name>Seller</Name>
+              <Description>The character name of the seller.</Description>
+              <Length>10</Length>
+            </Field>
+            <Field>
+              <Index>34</Index>
+              <Type>Byte</Type>
+              <Name>Flags</Name>
+              <Description>Bit 0: the requesting character meets the requirements of the item; bit 1: it is the own listing of the requester.</Description>
+            </Field>
+            <Field>
+              <Index>35</Index>
+              <Type>Byte</Type>
+              <Name>ItemDataLength</Name>
+              <Description>The length of the item data.</Description>
+            </Field>
+            <Field>
+              <Index>36</Index>
+              <Type>Binary</Type>
+              <Name>ItemData</Name>
+              <Description>The item data, serialized by the item serializer of the connection.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C2HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>52</SubCode>
+      <Name>AuctionGoodsList</Name>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionGoodsListRequest.</SentWhen>
+      <CausedReaction>The client shows the goods of the requested page.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>5</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Page</Name>
+          <Description>The page, starting at 0.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>TotalCount</Name>
+          <Description>The total count of goods identities.</Description>
+        </Field>
+        <Field>
+          <Index>14</Index>
+          <Type>Byte</Type>
+          <Name>Count</Name>
+          <Description>The count of rows.</Description>
+        </Field>
+        <Field>
+          <Index>15</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionGoodsEntry</TypeName>
+          <Name>Goods</Name>
+          <Description>The goods, ordered by type and level.</Description>
+          <ItemCountField>Count</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionGoodsEntry</Name>
+          <Description>A goods identity of an auction goods list.</Description>
+          <Length>13</Length>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>ShortLittleEndian</Type>
+              <Name>Type</Name>
+              <Description>The item type, group * 512 + number.</Description>
+            </Field>
+            <Field>
+              <Index>2</Index>
+              <Type>Byte</Type>
+              <Name>Level</Name>
+              <Description>The item level.</Description>
+            </Field>
+            <Field>
+              <Index>3</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>LowestUnitPrice</Name>
+              <Description>The lowest unit price in Zen.</Description>
+            </Field>
+            <Field>
+              <Index>7</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Available</Name>
+              <Description>The available quantity.</Description>
+            </Field>
+            <Field>
+              <Index>11</Index>
+              <Type>ShortLittleEndian</Type>
+              <Name>ListingCount</Name>
+              <Description>The count of listings.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>53</SubCode>
+      <Name>AuctionGoodsQuote</Name>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionGoodsQuoteRequest; and after an AuctionBuyGoodsResult with QuoteChanged or InsufficientStock, with the request id of the purchase.</SentWhen>
+      <CausedReaction>The client shows the price tiers and the total of the quantity.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>Success when the requested quantity is fillable, InsufficientStock when only less is available, PriceOutOfRange when the total would exceed the maximum price.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Type</Name>
+          <Description>The item type, group * 512 + number.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>Byte</Type>
+          <Name>Level</Name>
+          <Description>The item level.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>RequestedQuantity</Name>
+          <Description>The requested quantity.</Description>
+        </Field>
+        <Field>
+          <Index>14</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>FillableQuantity</Name>
+          <Description>The fillable quantity, at most the requested quantity.</Description>
+        </Field>
+        <Field>
+          <Index>18</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Total</Name>
+          <Description>The total in Zen for the fillable quantity, cheapest first; 0 with PriceOutOfRange.</Description>
+        </Field>
+        <Field>
+          <Index>22</Index>
+          <Type>Byte</Type>
+          <Name>TierCount</Name>
+          <Description>The count of price tiers, at most 8.</Description>
+        </Field>
+        <Field>
+          <Index>23</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionGoodsPriceTier</TypeName>
+          <Name>Tiers</Name>
+          <Description>The price tiers, cheapest first.</Description>
+          <ItemCountField>TierCount</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionGoodsPriceTier</Name>
+          <Description>A price tier of an auction goods quote.</Description>
+          <Length>8</Length>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>UnitPrice</Name>
+              <Description>The unit price in Zen.</Description>
+            </Field>
+            <Field>
+              <Index>4</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Quantity</Name>
+              <Description>The available quantity at this unit price.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>54</SubCode>
+      <Name>AuctionBuyListingResult</Name>
+      <Length>28</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionBuyListingRequest.</SentWhen>
+      <CausedReaction>The client shows the result of the purchase.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Binary</Type>
+          <Name>ListingId</Name>
+          <Description>The id of the listing.</Description>
+          <Length>16</Length>
+        </Field>
+        <Field>
+          <Index>23</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Paid</Name>
+          <Description>The paid amount in Zen.</Description>
+        </Field>
+        <Field>
+          <Index>27</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionDelivery</TypeName>
+          <Name>Delivery</Name>
+          <Description>Where the item went.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>55</SubCode>
+      <Name>AuctionBuyGoodsResult</Name>
+      <Length>26</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionBuyGoodsRequest.</SentWhen>
+      <CausedReaction>The client shows the result of the purchase.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Type</Name>
+          <Description>The item type, group * 512 + number.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>Byte</Type>
+          <Name>Level</Name>
+          <Description>The item level.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Quantity</Name>
+          <Description>The bought quantity.</Description>
+        </Field>
+        <Field>
+          <Index>14</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Paid</Name>
+          <Description>The paid amount in Zen.</Description>
+        </Field>
+        <Field>
+          <Index>18</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Delivered</Name>
+          <Description>The quantity delivered to the inventory.</Description>
+        </Field>
+        <Field>
+          <Index>22</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Kept</Name>
+          <Description>The quantity kept in the collection.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>56</SubCode>
+      <Name>AuctionCreateListingResult</Name>
+      <Length>31</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionCreateListingRequest.</SentWhen>
+      <CausedReaction>The client shows the result of the listing.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Binary</Type>
+          <Name>ListingId</Name>
+          <Description>The id of the created listing.</Description>
+          <Length>16</Length>
+        </Field>
+        <Field>
+          <Index>23</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Quantity</Name>
+          <Description>The listed quantity.</Description>
+        </Field>
+        <Field>
+          <Index>27</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>PostingFee</Name>
+          <Description>The charged posting fee in Zen.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>57</SubCode>
+      <Name>AuctionCancelListingResult</Name>
+      <Length>35</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionCancelListingRequest.</SentWhen>
+      <CausedReaction>The client shows the result of the cancellation.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Binary</Type>
+          <Name>ListingId</Name>
+          <Description>The id of the listing.</Description>
+          <Length>16</Length>
+        </Field>
+        <Field>
+          <Index>23</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ToInventory</Name>
+          <Description>The quantity returned to the inventory.</Description>
+        </Field>
+        <Field>
+          <Index>27</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ToCollection</Name>
+          <Description>The quantity moved to the collection.</Description>
+        </Field>
+        <Field>
+          <Index>31</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>RefundedFee</Name>
+          <Description>The refunded posting fee in Zen.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C2HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>58</SubCode>
+      <Name>AuctionOwnListings</Name>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionOwnListingsRequest.</SentWhen>
+      <CausedReaction>The client shows the own listings.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>5</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>Byte</Type>
+          <Name>Count</Name>
+          <Description>The count of rows.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionOwnListing</TypeName>
+          <Name>Listings</Name>
+          <Description>The listings. Each row has a variable length, because of its item data.</Description>
+          <ItemCountField>Count</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionOwnListing</Name>
+          <Description>An own listing of the auction house.</Description>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>Binary</Type>
+              <Name>ListingId</Name>
+              <Description>The id of the listing.</Description>
+              <Length>16</Length>
+            </Field>
+            <Field>
+              <Index>16</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>UnitPrice</Name>
+              <Description>The unit price in Zen.</Description>
+            </Field>
+            <Field>
+              <Index>20</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Listed</Name>
+              <Description>The listed quantity.</Description>
+            </Field>
+            <Field>
+              <Index>24</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Remaining</Name>
+              <Description>The remaining quantity.</Description>
+            </Field>
+            <Field>
+              <Index>28</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>SecondsLeft</Name>
+              <Description>The remaining seconds of the listing.</Description>
+            </Field>
+            <Field>
+              <Index>32</Index>
+              <Type>Enum</Type>
+              <TypeName>AuctionListingKind</TypeName>
+              <Name>Kind</Name>
+              <Description>The kind of the listing.</Description>
+            </Field>
+            <Field>
+              <Index>33</Index>
+              <Type>ShortLittleEndian</Type>
+              <Name>Type</Name>
+              <Description>The item type, group * 512 + number.</Description>
+            </Field>
+            <Field>
+              <Index>35</Index>
+              <Type>Byte</Type>
+              <Name>Level</Name>
+              <Description>The item level.</Description>
+            </Field>
+            <Field>
+              <Index>36</Index>
+              <Type>Byte</Type>
+              <Name>ItemDataLength</Name>
+              <Description>The length of the item data; 0 for goods.</Description>
+            </Field>
+            <Field>
+              <Index>37</Index>
+              <Type>Binary</Type>
+              <Name>ItemData</Name>
+              <Description>The item data, serialized by the item serializer of the connection.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C2HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>59</SubCode>
+      <Name>AuctionCollection</Name>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionCollectionRequest.</SentWhen>
+      <CausedReaction>The client shows the collection entries of the requested page.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>5</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Page</Name>
+          <Description>The page, starting at 0.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>TotalCount</Name>
+          <Description>The total count of collection entries.</Description>
+        </Field>
+        <Field>
+          <Index>12</Index>
+          <Type>Byte</Type>
+          <Name>Count</Name>
+          <Description>The count of entries.</Description>
+        </Field>
+        <Field>
+          <Index>13</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionCollectionEntry</TypeName>
+          <Name>Entries</Name>
+          <Description>The collection entries. Each entry has a variable length, because of its item data.</Description>
+          <ItemCountField>Count</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionCollectionEntry</Name>
+          <Description>An entry of the auction house collection.</Description>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>Binary</Type>
+              <Name>EntryId</Name>
+              <Description>The id of the entry.</Description>
+              <Length>16</Length>
+            </Field>
+            <Field>
+              <Index>16</Index>
+              <Type>Enum</Type>
+              <TypeName>AuctionCollectionEntryKind</TypeName>
+              <Name>Kind</Name>
+              <Description>The kind of the entry.</Description>
+            </Field>
+            <Field>
+              <Index>17</Index>
+              <Type>ShortLittleEndian</Type>
+              <Name>Type</Name>
+              <Description>The item type, group * 512 + number.</Description>
+            </Field>
+            <Field>
+              <Index>19</Index>
+              <Type>Byte</Type>
+              <Name>Level</Name>
+              <Description>The item level.</Description>
+            </Field>
+            <Field>
+              <Index>20</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Quantity</Name>
+              <Description>The quantity.</Description>
+            </Field>
+            <Field>
+              <Index>24</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Gross</Name>
+              <Description>The gross in Zen.</Description>
+            </Field>
+            <Field>
+              <Index>28</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Fee</Name>
+              <Description>The fee in Zen.</Description>
+            </Field>
+            <Field>
+              <Index>32</Index>
+              <Type>IntegerLittleEndian</Type>
+              <Name>Net</Name>
+              <Description>The Zen still to collect.</Description>
+            </Field>
+            <Field>
+              <Index>36</Index>
+              <Type>Byte</Type>
+              <Name>ItemDataLength</Name>
+              <Description>The length of the item data; 0 except for individual items.</Description>
+            </Field>
+            <Field>
+              <Index>37</Index>
+              <Type>Binary</Type>
+              <Name>ItemData</Name>
+              <Description>The item data, serialized by the item serializer of the connection.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>5A</SubCode>
+      <Name>AuctionClaimResult</Name>
+      <Length>20</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionClaimRequest.</SentWhen>
+      <CausedReaction>The client shows the result of the claim.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>Success, or Partial when anything was kept back.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>CompletedEntries</Name>
+          <Description>The count of completed entries.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ItemsMoved</Name>
+          <Description>The count of items moved to the inventory.</Description>
+        </Field>
+        <Field>
+          <Index>13</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ZenCollected</Name>
+          <Description>The collected Zen.</Description>
+        </Field>
+        <Field>
+          <Index>17</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RemainingEntries</Name>
+          <Description>The count of remaining entries.</Description>
+        </Field>
+        <Field>
+          <Index>19</Index>
+          <Type>Byte</Type>
+          <Name>KeptBack</Name>
+          <Description>Bit 0: inventory space kept something back; bit 1: the Zen limit kept something back.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>5B</SubCode>
+      <Name>AuctionNotice</Name>
+      <Length>18</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>Sold or expired: while the seller is online, wherever the seller is. Deliveries waiting: when a character with collection entries enters the game.</SentWhen>
+      <CausedReaction>The client notifies the player.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionNoticeKind</TypeName>
+          <Name>Kind</Name>
+          <Description>The kind of the notice.</Description>
+        </Field>
+        <Field>
+          <Index>5</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Type</Name>
+          <Description>The item type, group * 512 + number. 0 for deliveries waiting.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Byte</Type>
+          <Name>Level</Name>
+          <Description>The item level. 0 for deliveries waiting.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Quantity</Name>
+          <Description>The quantity; 0 for deliveries waiting.</Description>
+        </Field>
+        <Field>
+          <Index>12</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Net</Name>
+          <Description>The net in Zen; 0 for deliveries waiting.</Description>
+        </Field>
+        <Field>
+          <Index>16</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>PendingCollection</Name>
+          <Description>The count of entries in the collection of the player.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>5C</SubCode>
+      <Name>AuctionSellCheckResult</Name>
+      <Length>22</Length>
+      <Direction>ServerToClient</Direction>
+      <SentWhen>As the answer to an AuctionSellCheckRequest.</SentWhen>
+      <CausedReaction>The client shows whether and how the item can be listed.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id of the answered request.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionResult</TypeName>
+          <Name>Result</Name>
+          <Description>The result. Anything but Success and Partial means nothing was charged, moved or created.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>Byte</Type>
+          <Name>InventorySlot</Name>
+          <Description>The inventory slot.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionSellCheckReason</TypeName>
+          <Name>Reason</Name>
+          <Description>Whether the item is eligible, and if not, why.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionListingKind</TypeName>
+          <Name>Kind</Name>
+          <Description>The kind of listing which the item would be.</Description>
+        </Field>
+        <Field>
+          <Index>10</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Type</Name>
+          <Description>The item type, group * 512 + number.</Description>
+        </Field>
+        <Field>
+          <Index>12</Index>
+          <Type>Byte</Type>
+          <Name>Level</Name>
+          <Description>The item level.</Description>
+        </Field>
+        <Field>
+          <Index>13</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Available</Name>
+          <Description>For goods, the count of identical loose units in the inventory.</Description>
+        </Field>
+        <Field>
+          <Index>17</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>LowestUnitPrice</Name>
+          <Description>The lowest unit price in Zen of other sellers; 0 = none.</Description>
+        </Field>
+        <Field>
+          <Index>21</Index>
+          <Type>Byte</Type>
+          <Name>ActiveListings</Name>
+          <Description>The count of active listings of the seller.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
       <HeaderType>C1Header</HeaderType>
       <Code>0D</Code>
       <Name>ServerMessage</Name>
@@ -14325,6 +15304,218 @@
           <Name>GuardianStatue</Name>
           <Description>A Guardian Statue.</Description>
           <Value>1</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionResult</Name>
+      <Description>Defines the result of an auction house request. Anything but Success and Partial means nothing was charged, moved or created; list answers then carry a count of 0.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Success</Name>
+          <Description>The request succeeded.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Unavailable</Name>
+          <Description>The auction house is unavailable.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>NotOpen</Name>
+          <Description>No broker dialog is open.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Busy</Name>
+          <Description>The server is busy with another request of the player.</Description>
+          <Value>3</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>InvalidRequest</Name>
+          <Description>The request is invalid.</Description>
+          <Value>4</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>NotFound</Name>
+          <Description>The listing or entry was not found.</Description>
+          <Value>5</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>QuoteChanged</Name>
+          <Description>The price or total changed since it was reviewed.</Description>
+          <Value>6</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>InsufficientStock</Name>
+          <Description>Fewer units are available than requested.</Description>
+          <Value>7</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>InsufficientZen</Name>
+          <Description>The player has not enough Zen.</Description>
+          <Value>8</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>NotEligible</Name>
+          <Description>The item is not eligible for listing.</Description>
+          <Value>9</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>ListingLimitReached</Name>
+          <Description>The seller has reached the maximum count of active listings.</Description>
+          <Value>10</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>PriceOutOfRange</Name>
+          <Description>A price or total is out of range.</Description>
+          <Value>11</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>RulesChanged</Name>
+          <Description>The rules changed; a new AuctionHouseState follows.</Description>
+          <Value>12</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>OwnListing</Name>
+          <Description>The listing is the own listing of the player.</Description>
+          <Value>13</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Partial</Name>
+          <Description>The request succeeded partially, something was kept back.</Description>
+          <Value>14</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>InternalError</Name>
+          <Description>An internal error occurred.</Description>
+          <Value>15</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionHouseWindowState</Name>
+      <Description>Defines the state of the auction house window.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Closed</Name>
+          <Description>The window is closed.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Open</Name>
+          <Description>The window is open.</Description>
+          <Value>1</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionDelivery</Name>
+      <Description>Defines where a bought item went.</Description>
+      <Values>
+        <EnumValue>
+          <Name>None</Name>
+          <Description>Nothing was delivered.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Inventory</Name>
+          <Description>To the inventory.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Collection</Name>
+          <Description>To the collection.</Description>
+          <Value>2</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionListingKind</Name>
+      <Description>Defines the kind of an auction listing.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Item</Name>
+          <Description>An individual item.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Goods</Name>
+          <Description>Goods: identical, interchangeable units.</Description>
+          <Value>2</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionCollectionEntryKind</Name>
+      <Description>Defines the kind of an auction collection entry.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Purchase</Name>
+          <Description>A purchase which did not fit into the inventory.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Proceeds</Name>
+          <Description>The proceeds of a listing.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Cancelled</Name>
+          <Description>The units of a cancelled listing.</Description>
+          <Value>3</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Expired</Name>
+          <Description>The units of an expired listing.</Description>
+          <Value>4</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionNoticeKind</Name>
+      <Description>Defines the kind of an auction notice.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Sold</Name>
+          <Description>A listing sold.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Expired</Name>
+          <Description>A listing expired.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>DeliveriesWaiting</Name>
+          <Description>Deliveries are waiting in the collection.</Description>
+          <Value>3</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionSellCheckReason</Name>
+      <Description>Defines whether an item is eligible for listing, and if not, why.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Eligible</Name>
+          <Description>The item is eligible.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>NotTradable</Name>
+          <Description>The item is not tradable.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>NoItem</Name>
+          <Description>There is no item in that slot.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>NotAccepted</Name>
+          <Description>The item is not accepted by the market.</Description>
+          <Value>3</Value>
         </EnumValue>
       </Values>
     </Enum>

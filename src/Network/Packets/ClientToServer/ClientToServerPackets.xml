@@ -2220,6 +2220,464 @@
         </Field>
       </Fields>
     </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>51</SubCode>
+      <Name>AuctionSearchRequest</Name>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player searches the item listings of the auction house with the given filters, or turns the page of a search result.</SentWhen>
+      <CausedReaction>The server answers with an AuctionSearchResult with the same request id: the matching item listings of the requested page, sorted by price, and the total count of matches. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Page</Name>
+          <Description>The requested page, starting at 0.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionSortOrder</TypeName>
+          <Name>Sort</Name>
+          <Description>The sort order of the results.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>SlotMask</Name>
+          <Description>The equipment slot kinds, 0 = any. Bit 0 weapon, 1 shield, 2 helm, 3 armor, 4 pants, 5 gloves, 6 boots, 7 wings, 8 pendant, 9 ring, 10 pet.</Description>
+        </Field>
+        <Field>
+          <Index>11</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>GroupMask</Name>
+          <Description>The native item groups, 0 = any. Bit n = item group n.</Description>
+        </Field>
+        <Field>
+          <Index>13</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionClassLine</TypeName>
+          <Name>ClassLine</Name>
+          <Description>The class line which must be able to use the item.</Description>
+        </Field>
+        <Field>
+          <Index>14</Index>
+          <Type>Byte</Type>
+          <Name>Flags</Name>
+          <Description>Bit 0: the requesting character can equip the item now, by the equip rules of the server; bit 1: luck required; bit 2: skill required.</Description>
+        </Field>
+        <Field>
+          <Index>15</Index>
+          <Type>Enum</Type>
+          <TypeName>AuctionItemFamily</TypeName>
+          <Name>Family</Name>
+          <Description>The item family.</Description>
+        </Field>
+        <Field>
+          <Index>16</Index>
+          <Type>Byte</Type>
+          <Name>UpgradeMin</Name>
+          <Description>The minimum item level, 0 to 15.</Description>
+        </Field>
+        <Field>
+          <Index>17</Index>
+          <Type>Byte</Type>
+          <Name>UpgradeMax</Name>
+          <Description>The maximum item level, 0 to 15, at least UpgradeMin.</Description>
+        </Field>
+        <Field>
+          <Index>18</Index>
+          <Type>Byte</Type>
+          <Name>ExcellentMask</Name>
+          <Description>The required excellent options, as bits of the excellent option byte of the item; every set bit is required.</Description>
+        </Field>
+        <Field>
+          <Index>19</Index>
+          <Type>Byte</Type>
+          <Name>MinExcellentCount</Name>
+          <Description>The minimum count of excellent options, 0 to 6.</Description>
+        </Field>
+        <Field>
+          <Index>20</Index>
+          <Type>Byte</Type>
+          <Name>MinSockets</Name>
+          <Description>The minimum count of sockets, 0 to 5.</Description>
+        </Field>
+        <Field>
+          <Index>21</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>MaxPrice</Name>
+          <Description>The maximum price in Zen, 0 = none.</Description>
+        </Field>
+        <Field>
+          <Index>25</Index>
+          <Type>Byte</Type>
+          <Name>EntryCount</Name>
+          <Description>The count of entries, at most 64.</Description>
+        </Field>
+        <Field>
+          <Index>26</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionSearchEntry</TypeName>
+          <Name>Entries</Name>
+          <Description>The item type entries: up to 48 name matches and up to 16 ancient set members. Both kinds given: both apply.</Description>
+          <ItemCountField>EntryCount</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionSearchEntry</Name>
+          <Description>An item type entry of an auction search.</Description>
+          <Length>3</Length>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>ShortLittleEndian</Type>
+              <Name>Type</Name>
+              <Description>The item type, group * 512 + number.</Description>
+            </Field>
+            <Field>
+              <Index>2</Index>
+              <Type>Byte</Type>
+              <Name>Discriminator</Name>
+              <Description>0 = a name match, the type of the item must be one of these entries; 1 or 2 = an ancient set member, the item must be ancient with this discriminator and of one of these types.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>52</SubCode>
+      <Name>AuctionGoodsListRequest</Name>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player opens the goods list of the auction house, or turns its page.</SentWhen>
+      <CausedReaction>The server answers with an AuctionGoodsList with the same request id: per goods identity the lowest unit price, the available quantity and the listing count, without the own listings of the requester. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Page</Name>
+          <Description>The requested page, starting at 0.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>Byte</Type>
+          <Name>TypeCount</Name>
+          <Description>The count of item types, at most 64; 0 = all goods.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>Structure[]</Type>
+          <TypeName>AuctionItemType</TypeName>
+          <Name>Types</Name>
+          <Description>The item types to which the list is limited.</Description>
+          <ItemCountField>TypeCount</ItemCountField>
+        </Field>
+      </Fields>
+      <Structures>
+        <Structure>
+          <Name>AuctionItemType</Name>
+          <Description>An item type of an auction goods list request.</Description>
+          <Length>2</Length>
+          <Fields>
+            <Field>
+              <Index>0</Index>
+              <Type>ShortLittleEndian</Type>
+              <Name>Type</Name>
+              <Description>The item type, group * 512 + number.</Description>
+            </Field>
+          </Fields>
+        </Structure>
+      </Structures>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>53</SubCode>
+      <Name>AuctionGoodsQuoteRequest</Name>
+      <Length>13</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player wants to know the price of a quantity of goods, before buying it.</SentWhen>
+      <CausedReaction>The server answers with an AuctionGoodsQuote with the same request id: the cheapest price tiers, the fillable quantity and the exact total, without the own listings of the requester. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Type</Name>
+          <Description>The item type, group * 512 + number.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>Byte</Type>
+          <Name>Level</Name>
+          <Description>The item level.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Quantity</Name>
+          <Description>The requested quantity, at least 1.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>54</SubCode>
+      <Name>AuctionBuyListingRequest</Name>
+      <Length>26</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player buys an item listing, after reviewing its price.</SentWhen>
+      <CausedReaction>The server completes the purchase if the listing is still active at the reviewed price, is not the own listing of the buyer and the buyer has enough Zen, and answers with an AuctionBuyListingResult with the same request id. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Binary</Type>
+          <Name>ListingId</Name>
+          <Description>The id of the listing.</Description>
+          <Length>16</Length>
+        </Field>
+        <Field>
+          <Index>22</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ReviewedPrice</Name>
+          <Description>The price in Zen which the player reviewed.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>55</SubCode>
+      <Name>AuctionBuyGoodsRequest</Name>
+      <Length>17</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player buys a quantity of goods, after reviewing its total.</SentWhen>
+      <CausedReaction>The server completes the purchase only for the full quantity at a current total not above the reviewed total, and answers with an AuctionBuyGoodsResult with the same request id. After QuoteChanged or InsufficientStock, a fresh AuctionGoodsQuote with the same request id follows. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Type</Name>
+          <Description>The item type, group * 512 + number.</Description>
+        </Field>
+        <Field>
+          <Index>8</Index>
+          <Type>Byte</Type>
+          <Name>Level</Name>
+          <Description>The item level.</Description>
+        </Field>
+        <Field>
+          <Index>9</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Quantity</Name>
+          <Description>The quantity to buy.</Description>
+        </Field>
+        <Field>
+          <Index>13</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ReviewedTotal</Name>
+          <Description>The total in Zen which the player reviewed.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>56</SubCode>
+      <Name>AuctionCreateListingRequest</Name>
+      <Length>20</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player lists an item or a quantity of goods of the inventory in the auction house.</SentWhen>
+      <CausedReaction>The server removes the listed units from the inventory, charges the posting fee and answers with an AuctionCreateListingResult with the same request id; or it refuses and changes nothing. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Byte</Type>
+          <Name>InventorySlot</Name>
+          <Description>The inventory slot of the item; for goods, the identical loose units are taken starting with this slot.</Description>
+        </Field>
+        <Field>
+          <Index>7</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>Quantity</Name>
+          <Description>The quantity, 1 for an item listing.</Description>
+        </Field>
+        <Field>
+          <Index>11</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>UnitPrice</Name>
+          <Description>The price in Zen of one unit.</Description>
+        </Field>
+        <Field>
+          <Index>15</Index>
+          <Type>Byte</Type>
+          <Name>DurationHours</Name>
+          <Description>The duration in hours, one of the announced durations.</Description>
+        </Field>
+        <Field>
+          <Index>16</Index>
+          <Type>IntegerLittleEndian</Type>
+          <Name>ExpectedPostingFee</Name>
+          <Description>The posting fee in Zen which the player expects to pay.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>57</SubCode>
+      <Name>AuctionCancelListingRequest</Name>
+      <Length>22</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player cancels an own active listing.</SentWhen>
+      <CausedReaction>The server ends the listing, returns the remaining units to the inventory as far as they fit, otherwise to the collection, and answers with an AuctionCancelListingResult with the same request id. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Binary</Type>
+          <Name>ListingId</Name>
+          <Description>The id of the listing.</Description>
+          <Length>16</Length>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>58</SubCode>
+      <Name>AuctionOwnListingsRequest</Name>
+      <Length>6</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player opens the list of the own listings.</SentWhen>
+      <CausedReaction>The server answers with an AuctionOwnListings with the same request id. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>59</SubCode>
+      <Name>AuctionCollectionRequest</Name>
+      <Length>8</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player opens the collection, or turns its page.</SentWhen>
+      <CausedReaction>The server answers with an AuctionCollection with the same request id. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>Page</Name>
+          <Description>The requested page, starting at 0.</Description>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>5A</SubCode>
+      <Name>AuctionClaimRequest</Name>
+      <Length>22</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player claims one entry or all entries of the collection.</SentWhen>
+      <CausedReaction>The server moves items as far as they fit into the inventory and Zen as far as the inventory Zen limit allows, keeps the remainder in the collection, and answers with an AuctionClaimResult with the same request id. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Binary</Type>
+          <Name>EntryId</Name>
+          <Description>The id of the collection entry; all zero = every entry.</Description>
+          <Length>16</Length>
+        </Field>
+      </Fields>
+    </Packet>
+    <Packet>
+      <HeaderType>C1HeaderWithSubCode</HeaderType>
+      <Code>7B</Code>
+      <SubCode>5C</SubCode>
+      <Name>AuctionSellCheckRequest</Name>
+      <Length>7</Length>
+      <Direction>ClientToServer</Direction>
+      <SentWhen>The player wants to know whether the item of an inventory slot can be listed, before listing it.</SentWhen>
+      <CausedReaction>The server answers with an AuctionSellCheckResult with the same request id. Every request without an open broker dialog is answered with NotOpen.</CausedReaction>
+      <Fields>
+        <Field>
+          <Index>4</Index>
+          <Type>ShortLittleEndian</Type>
+          <Name>RequestId</Name>
+          <Description>The request id, chosen by the client (1 to 65535, 0 is never sent); the answer echoes it.</Description>
+        </Field>
+        <Field>
+          <Index>6</Index>
+          <Type>Byte</Type>
+          <Name>InventorySlot</Name>
+          <Description>The inventory slot.</Description>
+        </Field>
+      </Fields>
+    </Packet>
 
     <Packet>
       <HeaderType>C1Header</HeaderType>
@@ -4483,6 +4941,99 @@
           <Name>Wait</Name>
           <Description>Orders the team to wait.</Description>
           <Value>2</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionSortOrder</Name>
+      <Description>Defines the sort order of an auction search result.</Description>
+      <Values>
+        <EnumValue>
+          <Name>PriceAscending</Name>
+          <Description>Sorted by price, the cheapest first.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>PriceDescending</Name>
+          <Description>Sorted by price, the most expensive first.</Description>
+          <Value>1</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionClassLine</Name>
+      <Description>Defines the class line of an auction search: a base class, including its evolutions.</Description>
+      <Values>
+        <EnumValue>
+          <Name>DarkWizard</Name>
+          <Description>Dark Wizard.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>DarkKnight</Name>
+          <Description>Dark Knight.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>FairyElf</Name>
+          <Description>Fairy Elf.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>MagicGladiator</Name>
+          <Description>Magic Gladiator.</Description>
+          <Value>3</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>DarkLord</Name>
+          <Description>Dark Lord.</Description>
+          <Value>4</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Summoner</Name>
+          <Description>Summoner.</Description>
+          <Value>5</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>RageFighter</Name>
+          <Description>Rage Fighter.</Description>
+          <Value>6</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Any</Name>
+          <Description>Any class line.</Description>
+          <Value>255</Value>
+        </EnumValue>
+      </Values>
+    </Enum>
+    <Enum>
+      <Name>AuctionItemFamily</Name>
+      <Description>Defines the item family of an auction search. It tests the item, so one item can match several families.</Description>
+      <Values>
+        <EnumValue>
+          <Name>Any</Name>
+          <Description>Any item.</Description>
+          <Value>0</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Normal</Name>
+          <Description>An item without excellent option, not ancient, without socket.</Description>
+          <Value>1</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Excellent</Name>
+          <Description>An item with any excellent option.</Description>
+          <Value>2</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Ancient</Name>
+          <Description>An item of an ancient set.</Description>
+          <Value>3</Value>
+        </EnumValue>
+        <EnumValue>
+          <Name>Socket</Name>
+          <Description>An item with at least one socket.</Description>
+          <Value>4</Value>
         </EnumValue>
       </Values>
     </Enum>

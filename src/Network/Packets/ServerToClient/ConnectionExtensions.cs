@@ -4106,6 +4106,334 @@ public static class ConnectionExtensions
     }
 
     /// <summary>
+    /// Sends a <see cref="AuctionHouseState" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="state">The state of the auction house window. When closed, all following fields are 0.</param>
+    /// <param name="pageSize">The count of rows of a page.</param>
+    /// <param name="maxActiveListings">The maximum count of active listings of a seller.</param>
+    /// <param name="activeListings">The count of active listings of the player.</param>
+    /// <param name="pendingCollection">The count of entries in the collection of the player.</param>
+    /// <param name="zenLimit">The Zen limit of the inventory, at most 2,147,483,647.</param>
+    /// <param name="maxPrice">The maximum price or total in Zen.</param>
+    /// <param name="postingFeeFlat">The flat part of the posting fee in Zen; 0 is allowed.</param>
+    /// <param name="postingFeeBasisPoints">The posting fee in basis points of quantity * unit price.</param>
+    /// <param name="saleFeeBasisPoints">The sale fee in basis points of the gross of a sale.</param>
+    /// <param name="flags">Bit 0: the posting fee is refunded on cancel.</param>
+    /// <param name="durationCount">The count of offered durations, 1 to 4.</param>
+    /// <param name="durations">The offered listing durations in hours; unused ones are 0.</param>
+    /// <remarks>
+    /// Is sent by the server when: Open: instead of the NPC window response, when a player talks to an NPC with the auction-house window, and again after a RulesChanged answer. Closed: whenever the broker dialog ends (the close request of the client, warp, death, logout, another dialog).
+    /// Causes reaction on client side: Open: the client shows the auction house window with these rules. Closed: the client closes the auction house window.
+    /// </remarks>
+    public static async ValueTask SendAuctionHouseStateAsync(this IConnection? connection, AuctionHouseWindowState @state, byte @pageSize, byte @maxActiveListings, byte @activeListings, ushort @pendingCollection, uint @zenLimit, uint @maxPrice, uint @postingFeeFlat, ushort @postingFeeBasisPoints, ushort @saleFeeBasisPoints, byte @flags, byte @durationCount, Memory<byte> @durations)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionHouseStateRef.Length;
+            var packet = new AuctionHouseStateRef(connection.Output.GetSpan(length)[..length]);
+            packet.State = @state;
+            packet.PageSize = @pageSize;
+            packet.MaxActiveListings = @maxActiveListings;
+            packet.ActiveListings = @activeListings;
+            packet.PendingCollection = @pendingCollection;
+            packet.ZenLimit = @zenLimit;
+            packet.MaxPrice = @maxPrice;
+            packet.PostingFeeFlat = @postingFeeFlat;
+            packet.PostingFeeBasisPoints = @postingFeeBasisPoints;
+            packet.SaleFeeBasisPoints = @saleFeeBasisPoints;
+            packet.Flags = @flags;
+            packet.DurationCount = @durationCount;
+            @durations.Span.CopyTo(packet.Durations);
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionBuyListingResult" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="result">The result. Anything but Success and Partial means nothing was charged, moved or created.</param>
+    /// <param name="listingId">The id of the listing.</param>
+    /// <param name="paid">The paid amount in Zen.</param>
+    /// <param name="delivery">Where the item went.</param>
+    /// <remarks>
+    /// Is sent by the server when: As the answer to an AuctionBuyListingRequest.
+    /// Causes reaction on client side: The client shows the result of the purchase.
+    /// </remarks>
+    public static async ValueTask SendAuctionBuyListingResultAsync(this IConnection? connection, ushort @requestId, AuctionResult @result, Memory<byte> @listingId, uint @paid, AuctionDelivery @delivery)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionBuyListingResultRef.Length;
+            var packet = new AuctionBuyListingResultRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Result = @result;
+            @listingId.Span.CopyTo(packet.ListingId);
+            packet.Paid = @paid;
+            packet.Delivery = @delivery;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionBuyGoodsResult" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="result">The result. Anything but Success and Partial means nothing was charged, moved or created.</param>
+    /// <param name="type">The item type, group * 512 + number.</param>
+    /// <param name="level">The item level.</param>
+    /// <param name="quantity">The bought quantity.</param>
+    /// <param name="paid">The paid amount in Zen.</param>
+    /// <param name="delivered">The quantity delivered to the inventory.</param>
+    /// <param name="kept">The quantity kept in the collection.</param>
+    /// <remarks>
+    /// Is sent by the server when: As the answer to an AuctionBuyGoodsRequest.
+    /// Causes reaction on client side: The client shows the result of the purchase.
+    /// </remarks>
+    public static async ValueTask SendAuctionBuyGoodsResultAsync(this IConnection? connection, ushort @requestId, AuctionResult @result, ushort @type, byte @level, uint @quantity, uint @paid, uint @delivered, uint @kept)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionBuyGoodsResultRef.Length;
+            var packet = new AuctionBuyGoodsResultRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Result = @result;
+            packet.Type = @type;
+            packet.Level = @level;
+            packet.Quantity = @quantity;
+            packet.Paid = @paid;
+            packet.Delivered = @delivered;
+            packet.Kept = @kept;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionCreateListingResult" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="result">The result. Anything but Success and Partial means nothing was charged, moved or created.</param>
+    /// <param name="listingId">The id of the created listing.</param>
+    /// <param name="quantity">The listed quantity.</param>
+    /// <param name="postingFee">The charged posting fee in Zen.</param>
+    /// <remarks>
+    /// Is sent by the server when: As the answer to an AuctionCreateListingRequest.
+    /// Causes reaction on client side: The client shows the result of the listing.
+    /// </remarks>
+    public static async ValueTask SendAuctionCreateListingResultAsync(this IConnection? connection, ushort @requestId, AuctionResult @result, Memory<byte> @listingId, uint @quantity, uint @postingFee)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionCreateListingResultRef.Length;
+            var packet = new AuctionCreateListingResultRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Result = @result;
+            @listingId.Span.CopyTo(packet.ListingId);
+            packet.Quantity = @quantity;
+            packet.PostingFee = @postingFee;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionCancelListingResult" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="result">The result. Anything but Success and Partial means nothing was charged, moved or created.</param>
+    /// <param name="listingId">The id of the listing.</param>
+    /// <param name="toInventory">The quantity returned to the inventory.</param>
+    /// <param name="toCollection">The quantity moved to the collection.</param>
+    /// <param name="refundedFee">The refunded posting fee in Zen.</param>
+    /// <remarks>
+    /// Is sent by the server when: As the answer to an AuctionCancelListingRequest.
+    /// Causes reaction on client side: The client shows the result of the cancellation.
+    /// </remarks>
+    public static async ValueTask SendAuctionCancelListingResultAsync(this IConnection? connection, ushort @requestId, AuctionResult @result, Memory<byte> @listingId, uint @toInventory, uint @toCollection, uint @refundedFee)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionCancelListingResultRef.Length;
+            var packet = new AuctionCancelListingResultRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Result = @result;
+            @listingId.Span.CopyTo(packet.ListingId);
+            packet.ToInventory = @toInventory;
+            packet.ToCollection = @toCollection;
+            packet.RefundedFee = @refundedFee;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionClaimResult" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="result">Success, or Partial when anything was kept back.</param>
+    /// <param name="completedEntries">The count of completed entries.</param>
+    /// <param name="itemsMoved">The count of items moved to the inventory.</param>
+    /// <param name="zenCollected">The collected Zen.</param>
+    /// <param name="remainingEntries">The count of remaining entries.</param>
+    /// <param name="keptBack">Bit 0: inventory space kept something back; bit 1: the Zen limit kept something back.</param>
+    /// <remarks>
+    /// Is sent by the server when: As the answer to an AuctionClaimRequest.
+    /// Causes reaction on client side: The client shows the result of the claim.
+    /// </remarks>
+    public static async ValueTask SendAuctionClaimResultAsync(this IConnection? connection, ushort @requestId, AuctionResult @result, ushort @completedEntries, uint @itemsMoved, uint @zenCollected, ushort @remainingEntries, byte @keptBack)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionClaimResultRef.Length;
+            var packet = new AuctionClaimResultRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Result = @result;
+            packet.CompletedEntries = @completedEntries;
+            packet.ItemsMoved = @itemsMoved;
+            packet.ZenCollected = @zenCollected;
+            packet.RemainingEntries = @remainingEntries;
+            packet.KeptBack = @keptBack;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionNotice" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="kind">The kind of the notice.</param>
+    /// <param name="type">The item type, group * 512 + number. 0 for deliveries waiting.</param>
+    /// <param name="level">The item level. 0 for deliveries waiting.</param>
+    /// <param name="quantity">The quantity; 0 for deliveries waiting.</param>
+    /// <param name="net">The net in Zen; 0 for deliveries waiting.</param>
+    /// <param name="pendingCollection">The count of entries in the collection of the player.</param>
+    /// <remarks>
+    /// Is sent by the server when: Sold or expired: while the seller is online, wherever the seller is. Deliveries waiting: when a character with collection entries enters the game.
+    /// Causes reaction on client side: The client notifies the player.
+    /// </remarks>
+    public static async ValueTask SendAuctionNoticeAsync(this IConnection? connection, AuctionNoticeKind @kind, ushort @type, byte @level, uint @quantity, uint @net, ushort @pendingCollection)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionNoticeRef.Length;
+            var packet = new AuctionNoticeRef(connection.Output.GetSpan(length)[..length]);
+            packet.Kind = @kind;
+            packet.Type = @type;
+            packet.Level = @level;
+            packet.Quantity = @quantity;
+            packet.Net = @net;
+            packet.PendingCollection = @pendingCollection;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a <see cref="AuctionSellCheckResult" /> to this connection.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="result">The result. Anything but Success and Partial means nothing was charged, moved or created.</param>
+    /// <param name="inventorySlot">The inventory slot.</param>
+    /// <param name="reason">Whether the item is eligible, and if not, why.</param>
+    /// <param name="kind">The kind of listing which the item would be.</param>
+    /// <param name="type">The item type, group * 512 + number.</param>
+    /// <param name="level">The item level.</param>
+    /// <param name="available">For goods, the count of identical loose units in the inventory.</param>
+    /// <param name="lowestUnitPrice">The lowest unit price in Zen of other sellers; 0 = none.</param>
+    /// <param name="activeListings">The count of active listings of the seller.</param>
+    /// <remarks>
+    /// Is sent by the server when: As the answer to an AuctionSellCheckRequest.
+    /// Causes reaction on client side: The client shows whether and how the item can be listed.
+    /// </remarks>
+    public static async ValueTask SendAuctionSellCheckResultAsync(this IConnection? connection, ushort @requestId, AuctionResult @result, byte @inventorySlot, AuctionSellCheckReason @reason, AuctionListingKind @kind, ushort @type, byte @level, uint @available, uint @lowestUnitPrice, byte @activeListings)
+    {
+        if (connection is null)
+        {
+            return;
+        }
+
+        int WritePacket()
+        {
+            var length = AuctionSellCheckResultRef.Length;
+            var packet = new AuctionSellCheckResultRef(connection.Output.GetSpan(length)[..length]);
+            packet.RequestId = @requestId;
+            packet.Result = @result;
+            packet.InventorySlot = @inventorySlot;
+            packet.Reason = @reason;
+            packet.Kind = @kind;
+            packet.Type = @type;
+            packet.Level = @level;
+            packet.Available = @available;
+            packet.LowestUnitPrice = @lowestUnitPrice;
+            packet.ActiveListings = @activeListings;
+
+            return packet.Header.Length;
+        }
+
+        await connection.SendAsync(WritePacket).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Sends a <see cref="ServerMessage" /> to this connection.
     /// </summary>
     /// <param name="connection">The connection.</param>
