@@ -138,6 +138,41 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionListing>> GetAuctionListingsAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var result = new List<DataModel.Entities.AuctionListing>(ids.Count);
+        var repository = this.Provider.GetRepository<AuctionListing>();
+        foreach (var id in ids)
+        {
+            if (await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false) is { } listing)
+            {
+                result.Add(listing);
+            }
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Guid>> GetActiveGoodsListingIdsAsync(byte itemGroup, short itemNumber, byte itemLevel, Guid excludedSellerCharacterId, long maximumUnitPrice, DateTime now, CancellationToken cancellationToken = default)
+    {
+        var listings = await this.Provider.GetRepository<AuctionListing>().GetAllAsync(cancellationToken).ConfigureAwait(false);
+        return listings
+            .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active
+                              && listing.Kind == DataModel.Entities.AuctionHouseListingKind.Goods
+                              && listing.ItemGroup == itemGroup
+                              && listing.ItemNumber == itemNumber
+                              && listing.ItemLevel == itemLevel
+                              && listing.SellerCharacterId != excludedSellerCharacterId
+                              && listing.UnitPrice <= maximumUnitPrice
+                              && listing.RemainingQuantity > 0
+                              && listing.ExpiresAt > now)
+            .Select(listing => listing.Id)
+            .Order()
+            .ToList();
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default)
     {
         var listings = await this.Provider.GetRepository<AuctionListing>().GetAllAsync(cancellationToken).ConfigureAwait(false);
@@ -156,6 +191,7 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
         try
         {
             var transaction = new InMemoryTransaction(this);
+            this.CreatedObjects = [];
             try
             {
                 return await operation(transaction).ConfigureAwait(false);
@@ -163,7 +199,18 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
             catch
             {
                 await transaction.RestoreAsync().ConfigureAwait(false);
+
+                // Like the entity framework variant, the objects created in the failed transaction disappear.
+                foreach (var created in this.CreatedObjects)
+                {
+                    this.Detach(created);
+                }
+
                 throw;
+            }
+            finally
+            {
+                this.CreatedObjects = null;
             }
         }
         finally

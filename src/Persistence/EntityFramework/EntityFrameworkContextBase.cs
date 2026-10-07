@@ -32,8 +32,15 @@ internal class EntityFrameworkContextBase : IContext
     /// Marks the asynchronous flow which runs a transaction of <see cref="RunInTransactionAsync{T}"/> and holds <see cref="_lock"/>.
     /// </summary>
     private readonly AsyncLocal<bool> _isTransactionFlow = new();
+
     private readonly ILogger _logger;
     private bool _isDisposed;
+
+    /// <summary>
+    /// A value indicating whether a transaction commit of this context failed with unknown outcome, so that the
+    /// in-memory state may contradict the database; such a context refuses saves and transactions.
+    /// </summary>
+    private volatile bool _isOutcomeUnknown;
     private int _notificationSuspensions;
 
     /// <summary>
@@ -70,6 +77,12 @@ internal class EntityFrameworkContextBase : IContext
     internal DbContext Context { get; }
 
     /// <summary>
+    /// Gets or sets a fault injection for tests, which is called right before (<see langword="false"/>) and right
+    /// after (<see langword="true"/>) the commit of a transaction of <see cref="RunInTransactionAsync{T}"/>.
+    /// </summary>
+    internal Func<bool, ValueTask>? CommitFaultInjection { get; set; }
+
+    /// <summary>
     /// Gets the repository provider.
     /// </summary>
     protected internal IContextAwareRepositoryProvider RepositoryProvider { get; }
@@ -80,6 +93,13 @@ internal class EntityFrameworkContextBase : IContext
         if (this._isTransactionFlow.Value)
         {
             throw new InvalidOperationException("The changes of a transaction are saved when it gets committed.");
+        }
+
+        if (this._isOutcomeUnknown)
+        {
+            // Its in-memory state may contradict the database, see TransactionOutcomeUnknownException.
+            this._logger.LogWarning("Refused to save a context after a transaction commit with unknown outcome.");
+            return false;
         }
 
         // A player's entities can be mutated by game logic on a flow that is not serialized against
@@ -119,6 +139,11 @@ internal class EntityFrameworkContextBase : IContext
             throw new InvalidOperationException("Transactions can't be nested.");
         }
 
+        if (this._isOutcomeUnknown)
+        {
+            throw new InvalidOperationException("The context refuses transactions after a transaction commit with unknown outcome.");
+        }
+
         if (this._changeListener is not null)
         {
             // The configuration change publishing works on the changes of a single save, which is not needed for transactions yet.
@@ -132,13 +157,25 @@ internal class EntityFrameworkContextBase : IContext
         try
         {
             await using var databaseTransaction = await this.Context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            var isCommitting = false;
             try
             {
                 var result = await operation(transaction).ConfigureAwait(false);
                 await this.Context.SaveChangesAsync(false, cancellationToken).ConfigureAwait(false);
+
+                // From here on, a failure doesn't tell whether the database committed.
+                isCommitting = true;
+                await this.InjectCommitFaultAsync(false).ConfigureAwait(false);
                 await databaseTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await this.InjectCommitFaultAsync(true).ConfigureAwait(false);
                 this.Context.ChangeTracker.AcceptAllChanges();
                 return result;
+            }
+            catch (Exception ex) when (isCommitting)
+            {
+                this._isOutcomeUnknown = true;
+                this._logger.LogError(ex, "The outcome of a transaction commit is unknown; the context refuses further saves.");
+                throw new TransactionOutcomeUnknownException(ex);
             }
             catch
             {
@@ -463,6 +500,9 @@ internal class EntityFrameworkContextBase : IContext
     {
         return await new AccountJsonObjectLoader().LoadObjectAsync<TModel>(id, this.Context, cancellationToken).ConfigureAwait(false);
     }
+
+    private ValueTask InjectCommitFaultAsync(bool isCommitted)
+        => this.CommitFaultInjection?.Invoke(isCommitted) ?? ValueTask.CompletedTask;
 
     private HashSet<object> GetAddedEntities()
     {

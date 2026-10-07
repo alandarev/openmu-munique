@@ -17,7 +17,7 @@ public static class TypeHelper
     /// <summary>
     /// A cache which holds extended types (Value) for their origin assembly and corresponding base type (Key).
     /// </summary>
-    private static readonly IDictionary<(Assembly Origin, Type BaseType), Type> BaseToPersistentTypes = new ConcurrentDictionary<(Assembly Origin, Type BaseType), Type>();
+    private static readonly ConcurrentDictionary<(Assembly Origin, Type BaseType), Type> BaseToPersistentTypes = new();
 
     /// <summary>
     /// Gets the ef core type of <typeparamref name="TBase"/>.
@@ -46,13 +46,7 @@ public static class TypeHelper
 
         // Keyed by the origin too, because the persistent types of several assemblies (e.g. the basic and the entity
         // framework model) can be used in one process.
-        if (!BaseToPersistentTypes.TryGetValue((origin, baseType), out var persistentType))
-        {
-            persistentType = origin.GetTypes().First(t => t.BaseType == baseType);
-            BaseToPersistentTypes.TryAdd((origin, baseType), persistentType);
-        }
-
-        return persistentType;
+        return BaseToPersistentTypes.GetOrAdd((origin, baseType), key => key.Origin.GetTypes().First(t => t.BaseType == key.BaseType));
     }
 
     /// <summary>

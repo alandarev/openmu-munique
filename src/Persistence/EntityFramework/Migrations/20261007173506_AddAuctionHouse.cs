@@ -188,6 +188,14 @@ CREATE TRIGGER ""DeleteAuctionHouseEscrow"" BEFORE DELETE ON data.""Character""
 DROP TRIGGER ""DeleteAuctionHouseEscrow"" ON data.""Character"";
 DROP FUNCTION data.""DeleteAuctionHouseEscrowOfCharacter""();");
 
+            // The escrow storages belong to the listings and entries; without their tables, they and their items would
+            // be orphans. Deleting them cascades to the listings, entries and items.
+            migrationBuilder.Sql(@"
+DELETE FROM data.""ItemStorage"" WHERE ""Id"" IN (
+    SELECT ""EscrowId"" FROM data.""AuctionListing""
+    UNION
+    SELECT ""EscrowId"" FROM data.""AuctionCollectionEntry"");");
+
             migrationBuilder.DropTable(
                 name: "AuctionCollectionEntry",
                 schema: "data");

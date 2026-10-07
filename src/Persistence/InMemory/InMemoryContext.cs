@@ -39,6 +39,12 @@ public class InMemoryContext : IContext
     /// </value>
     protected InMemoryRepositoryProvider Provider { get; }
 
+    /// <summary>
+    /// Gets or sets the list which collects the objects created by <see cref="CreateNew{T}"/>, while a transaction
+    /// tracks them; <see langword="null"/> otherwise.
+    /// </summary>
+    protected List<object>? CreatedObjects { get; set; }
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -104,6 +110,7 @@ public class InMemoryContext : IContext
         where T : class
     {
         var newObject = typeof(Persistence.BasicModel.GameConfiguration).Assembly.CreateNew<T>(args);
+        this.CreatedObjects?.Add(newObject);
         if (newObject is IIdentifiable identifiable)
         {
             if (identifiable.Id == Guid.Empty)
@@ -122,6 +129,7 @@ public class InMemoryContext : IContext
     public object CreateNew(Type type, params object?[] args)
     {
         var newObject = typeof(Persistence.BasicModel.GameConfiguration).Assembly.CreateNew(type, args);
+        this.CreatedObjects?.Add(newObject);
         if (newObject is IIdentifiable identifiable)
         {
             if (identifiable.Id == Guid.Empty)

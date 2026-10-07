@@ -146,6 +146,28 @@ public interface IPlayerContext : IContext
     ValueTask<IReadOnlyList<AuctionCollectionEntry>> GetAuctionCollectionEntriesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets auction house listings in any state with their escrowed items, without tracking them in this context.
+    /// </summary>
+    /// <param name="ids">The identifiers of the listings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The listings which exist, in the order of the identifiers.</returns>
+    ValueTask<IReadOnlyList<AuctionListing>> GetAuctionListingsAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the identifiers of the active auction house goods listings of an item type and level which aren't expired,
+    /// aren't of the excluded seller and don't cost more than a unit price, ordered by identifier.
+    /// </summary>
+    /// <param name="itemGroup">The item group.</param>
+    /// <param name="itemNumber">The item number.</param>
+    /// <param name="itemLevel">The item level.</param>
+    /// <param name="excludedSellerCharacterId">The identifier of the seller whose listings are left out.</param>
+    /// <param name="maximumUnitPrice">The maximum unit price.</param>
+    /// <param name="now">The current point in time (UTC).</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The identifiers of the listings.</returns>
+    ValueTask<IReadOnlyList<Guid>> GetActiveGoodsListingIdsAsync(byte itemGroup, short itemNumber, byte itemLevel, Guid excludedSellerCharacterId, long maximumUnitPrice, DateTime now, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the identifiers of active auction house listings whose duration ended, oldest expiry first.
     /// </summary>
     /// <param name="now">The current point in time (UTC).</param>
@@ -168,6 +190,9 @@ public interface IPlayerContext : IContext
     /// a restore action for every in-memory change it makes before such a failure can happen, so that the in-memory
     /// objects match the database again.
     /// The locked entities are detached when the transaction ends.
+    /// A failure in or after the commit call doesn't tell whether the database committed: then no restore action runs,
+    /// a <see cref="TransactionOutcomeUnknownException"/> is thrown, and the context refuses every further save and
+    /// transaction, so that its in-memory state is never written over the durable state.
     /// </remarks>
     /// <typeparam name="T">The type of the result.</typeparam>
     /// <param name="operation">The operation.</param>

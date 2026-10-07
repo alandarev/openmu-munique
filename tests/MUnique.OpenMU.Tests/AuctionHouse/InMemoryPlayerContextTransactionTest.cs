@@ -58,4 +58,27 @@ public class InMemoryPlayerContextTransactionTest
 
         Assert.That(locked, Is.EqualTo(new[] { storage }));
     }
+
+    /// <summary>
+    /// Entities created in a failed transaction disappear, like in the entity framework variant.
+    /// </summary>
+    [Test]
+    public async Task FailureRemovesCreatedEntitiesAsync()
+    {
+        var provider = new InMemoryPersistenceContextProvider();
+        using var context = provider.CreateNewPlayerContext(new Persistence.BasicModel.GameConfiguration());
+        Guid createdId = default;
+
+        Assert.ThrowsAsync<InvalidOperationException>(async () => await context.RunInTransactionAsync<bool>(_ =>
+        {
+            var listing = context.CreateNew<AuctionListing>();
+            listing.Escrow = context.CreateNew<ItemStorage>();
+            createdId = listing.GetId();
+            throw new InvalidOperationException("Injected failure.");
+        }).ConfigureAwait(false));
+
+        using var check = provider.CreateNewContext();
+        Assert.That(await check.GetByIdAsync<AuctionListing>(createdId).ConfigureAwait(false), Is.Null);
+        Assert.That(await check.GetAsync<ItemStorage>().ConfigureAwait(false), Is.Empty);
+    }
 }

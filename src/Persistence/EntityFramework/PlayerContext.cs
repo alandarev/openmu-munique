@@ -172,6 +172,34 @@ internal class PlayerContext : CachingEntityFrameworkContext, IPlayerContext
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<DataModel.Entities.AuctionListing>> GetAuctionListingsAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        return await this.LoadAggregatesAsync<DataModel.Entities.AuctionListing>(typeof(AuctionListing), ids, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Guid>> GetActiveGoodsListingIdsAsync(byte itemGroup, short itemNumber, byte itemLevel, Guid excludedSellerCharacterId, long maximumUnitPrice, DateTime now, CancellationToken cancellationToken = default)
+    {
+        using (this.RepositoryProvider.ContextStack.UseContext(this))
+        {
+            return await this.Context.Set<AuctionListing>()
+                .Where(listing => listing.State == DataModel.Entities.AuctionListingState.Active
+                                  && listing.Kind == DataModel.Entities.AuctionHouseListingKind.Goods
+                                  && listing.ItemGroup == itemGroup
+                                  && listing.ItemNumber == itemNumber
+                                  && listing.ItemLevel == itemLevel
+                                  && listing.SellerCharacterId != excludedSellerCharacterId
+                                  && listing.UnitPrice <= maximumUnitPrice
+                                  && listing.RemainingQuantity > 0
+                                  && listing.ExpiresAt > now)
+                .OrderBy(listing => listing.Id)
+                .Select(listing => listing.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<Guid>> GetDueAuctionListingIdsAsync(DateTime now, int maximumCount, CancellationToken cancellationToken = default)
     {
         using (this.RepositoryProvider.ContextStack.UseContext(this))
