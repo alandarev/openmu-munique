@@ -4,6 +4,8 @@
 
 namespace MUnique.OpenMU.GameLogic.AuctionHouse;
 
+using MUnique.OpenMU.DataModel.Configuration.Items;
+
 /// <summary>
 /// The rules of the auction house, which the broker announces when it opens.
 /// It's the custom configuration of the <see cref="AuctionHouseFeaturePlugIn"/>.
@@ -75,6 +77,45 @@ public class AuctionHouseRules
     /// further requests are answered with <see cref="AuctionHouseResult.Busy"/>. 0 means no limit.
     /// </summary>
     public byte MaximumRequestsPerSecond { get; set; } = 5;
+
+    /// <summary>
+    /// Gets or sets the item types which are traded as goods; every other eligible item is listed individually.
+    /// By default the jewels of Bless, Soul, Life, Creation, Guardian, Chaos and Harmony, the Gemstone, the lower and
+    /// higher refining stones, and the packed form of each.
+    /// </summary>
+    public List<AuctionGoodsItem> Goods { get; set; } =
+    [
+        new() { Group = 14, Number = 13, Name = "Jewel of Bless" },
+        new() { Group = 14, Number = 14, Name = "Jewel of Soul" },
+        new() { Group = 14, Number = 16, Name = "Jewel of Life" },
+        new() { Group = 14, Number = 22, Name = "Jewel of Creation" },
+        new() { Group = 14, Number = 31, Name = "Jewel of Guardian" },
+        new() { Group = 12, Number = 15, Name = "Jewel of Chaos" },
+        new() { Group = 14, Number = 42, Name = "Jewel of Harmony" },
+        new() { Group = 14, Number = 41, Name = "Gemstone" },
+        new() { Group = 14, Number = 43, Name = "Lower refine stone" },
+        new() { Group = 14, Number = 44, Name = "Higher refine stone" },
+        new() { Group = 12, Number = 30, Name = "Packed Jewel of Bless" },
+        new() { Group = 12, Number = 31, Name = "Packed Jewel of Soul" },
+        new() { Group = 12, Number = 136, Name = "Packed Jewel of Life" },
+        new() { Group = 12, Number = 137, Name = "Packed Jewel of Creation" },
+        new() { Group = 12, Number = 138, Name = "Packed Jewel of Guardian" },
+        new() { Group = 12, Number = 141, Name = "Packed Jewel of Chaos" },
+        new() { Group = 12, Number = 140, Name = "Packed Jewel of Harmony" },
+        new() { Group = 12, Number = 139, Name = "Packed Gemstone" },
+        new() { Group = 12, Number = 142, Name = "Packed Lower refine stone" },
+        new() { Group = 12, Number = 143, Name = "Packed Higher refine stone" },
+    ];
+
+    /// <summary>
+    /// Determines whether items of the given definition are traded as goods.
+    /// </summary>
+    /// <param name="definition">The item definition.</param>
+    /// <returns><see langword="true"/> if the items are goods.</returns>
+    public bool IsGoods(ItemDefinition definition)
+    {
+        return this.Goods?.Any(goods => goods.Group == definition.Group && goods.Number == definition.Number) ?? false;
+    }
 
     /// <summary>
     /// Gets the offered listing durations in hours, as they are announced: the first
