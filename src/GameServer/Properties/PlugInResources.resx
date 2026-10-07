@@ -2505,4 +2505,82 @@
   <data name="CustomGroupHandlerPlugIn_Description" xml:space="preserve">
     <value>Packet handler for the packets of features which the original game client doesn't have, under their dedicated head code (0x7B identifier).</value>
   </data>
+  <data name="ShowAuctionHouseStatePlugIn_Name" xml:space="preserve">
+    <value>Auction House - State</value>
+  </data>
+  <data name="ShowAuctionHouseStatePlugIn_Description" xml:space="preserve">
+    <value>Opens and closes the auction house window of the game client with the broker state, which carries the market rules.</value>
+  </data>
+  <data name="ShowAuctionSearchResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Search Result</value>
+  </data>
+  <data name="ShowAuctionSearchResultPlugIn_Description" xml:space="preserve">
+    <value>Sends the result of an auction house equipment search to the game client.</value>
+  </data>
+  <data name="ShowAuctionGoodsListPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Goods List</value>
+  </data>
+  <data name="ShowAuctionGoodsListPlugIn_Description" xml:space="preserve">
+    <value>Sends the goods list of the auction house to the game client.</value>
+  </data>
+  <data name="ShowAuctionGoodsQuotePlugIn_Name" xml:space="preserve">
+    <value>Auction House - Goods Quote</value>
+  </data>
+  <data name="ShowAuctionGoodsQuotePlugIn_Description" xml:space="preserve">
+    <value>Sends the price of a quantity of auction house goods to the game client.</value>
+  </data>
+  <data name="ShowAuctionBuyListingResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Buy Listing Result</value>
+  </data>
+  <data name="ShowAuctionBuyListingResultPlugIn_Description" xml:space="preserve">
+    <value>Sends the result of buying an auction house listing to the game client.</value>
+  </data>
+  <data name="ShowAuctionBuyGoodsResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Buy Goods Result</value>
+  </data>
+  <data name="ShowAuctionBuyGoodsResultPlugIn_Description" xml:space="preserve">
+    <value>Sends the result of buying auction house goods to the game client.</value>
+  </data>
+  <data name="ShowAuctionCreateListingResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Create Listing Result</value>
+  </data>
+  <data name="ShowAuctionCreateListingResultPlugIn_Description" xml:space="preserve">
+    <value>Sends the result of creating an auction house listing to the game client.</value>
+  </data>
+  <data name="ShowAuctionCancelListingResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Cancel Listing Result</value>
+  </data>
+  <data name="ShowAuctionCancelListingResultPlugIn_Description" xml:space="preserve">
+    <value>Sends the result of cancelling an auction house listing to the game client.</value>
+  </data>
+  <data name="ShowAuctionClaimResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Claim Result</value>
+  </data>
+  <data name="ShowAuctionClaimResultPlugIn_Description" xml:space="preserve">
+    <value>Sends the result of claiming the auction house collection to the game client.</value>
+  </data>
+  <data name="ShowAuctionSellCheckResultPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Sell Check Result</value>
+  </data>
+  <data name="ShowAuctionSellCheckResultPlugIn_Description" xml:space="preserve">
+    <value>Sends to the game client whether an item can be listed in the auction house.</value>
+  </data>
+  <data name="ShowAuctionOwnListingsPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Own Listings</value>
+  </data>
+  <data name="ShowAuctionOwnListingsPlugIn_Description" xml:space="preserve">
+    <value>Sends the own auction house listings of the player to the game client.</value>
+  </data>
+  <data name="ShowAuctionCollectionPlugIn_Name" xml:space="preserve">
+    <value>Auction House - Collection</value>
+  </data>
+  <data name="ShowAuctionCollectionPlugIn_Description" xml:space="preserve">
+    <value>Sends a page of the auction house collection of the player to the game client.</value>
+  </data>
+  <data name="ShowAuctionNoticePlugIn_Name" xml:space="preserve">
+    <value>Auction House - Notice</value>
+  </data>
+  <data name="ShowAuctionNoticePlugIn_Description" xml:space="preserve">
+    <value>Notifies the game client about sold or expired auction house listings and waiting deliveries.</value>
+  </data>
 </root>

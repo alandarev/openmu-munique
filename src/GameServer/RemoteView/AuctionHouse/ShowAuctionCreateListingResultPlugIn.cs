@@ -1,0 +1,73 @@
+// <copyright file="ShowAuctionCreateListingResultPlugIn.cs" company="MUnique">
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+// </copyright>
+
+namespace MUnique.OpenMU.GameServer.RemoteView.AuctionHouse;
+
+using System.Runtime.InteropServices;
+using MUnique.OpenMU.GameLogic.AuctionHouse;
+using MUnique.OpenMU.GameLogic.Views.AuctionHouse;
+using MUnique.OpenMU.Network;
+using MUnique.OpenMU.Network.Packets.ServerToClient;
+using MUnique.OpenMU.Network.PlugIns;
+using MUnique.OpenMU.PlugIns;
+
+/// <summary>
+/// The default implementation of the <see cref="IShowAuctionCreateListingResultPlugIn"/> which is forwarding everything to the game client with specific data packets.
+/// </summary>
+/// <remarks>
+/// The packet has a fixed length. The game client has to support the <see cref="AuctionCreateListingResult"/> packet of the auction house.
+/// </remarks>
+[PlugIn]
+[Display(Name = nameof(PlugInResources.ShowAuctionCreateListingResultPlugIn_Name), Description = nameof(PlugInResources.ShowAuctionCreateListingResultPlugIn_Description), ResourceType = typeof(PlugInResources))]
+[Guid("15C8333B-659C-4D49-854E-DFD76C784AB6")]
+[MinimumClient(106, 3, ClientLanguage.Invariant)]
+public class ShowAuctionCreateListingResultPlugIn : IShowAuctionCreateListingResultPlugIn
+{
+    private readonly RemotePlayer _player;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShowAuctionCreateListingResultPlugIn"/> class.
+    /// </summary>
+    /// <param name="player">The player.</param>
+    public ShowAuctionCreateListingResultPlugIn(RemotePlayer player) => this._player = player;
+
+    /// <inheritdoc/>
+    public async ValueTask ShowAuctionCreateListingResultAsync(ushort requestId, AuctionCreateListingOutcome outcome)
+    {
+        if (this._player.Connection is not { } connection)
+        {
+            return;
+        }
+
+        int Write()
+        {
+            var size = AuctionCreateListingResultRef.Length;
+            return ShowAuctionCreateListingResultPlugIn.Write(connection.Output.GetSpan(size)[..size], requestId, outcome);
+        }
+
+        await connection.SendAsync(Write).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Writes the <see cref="AuctionCreateListingResult"/> packet.
+    /// </summary>
+    /// <param name="target">The target, of <see cref="AuctionCreateListingResultRef.Length"/>.</param>
+    /// <param name="requestId">The request id of the answered request.</param>
+    /// <param name="outcome">The outcome.</param>
+    /// <returns>The written length.</returns>
+    internal static int Write(Span<byte> target, ushort requestId, AuctionCreateListingOutcome outcome)
+    {
+        target = target[..AuctionCreateListingResultRef.Length];
+        target.Clear();
+        var packet = new AuctionCreateListingResultRef(target)
+        {
+            RequestId = requestId,
+            Result = (AuctionResult)outcome.Result,
+            Quantity = outcome.Quantity,
+            PostingFee = outcome.PostingFee,
+        };
+        AuctionHouseSerialization.WriteId(packet.ListingId, outcome.ListingId);
+        return target.Length;
+    }
+}

@@ -5191,6 +5191,240 @@ namespace MUnique.OpenMU.GameServer.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Sends the result of buying auction house goods to the game client..
+        /// </summary>
+        public static string ShowAuctionBuyGoodsResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionBuyGoodsResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Buy Goods Result.
+        /// </summary>
+        public static string ShowAuctionBuyGoodsResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionBuyGoodsResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the result of buying an auction house listing to the game client..
+        /// </summary>
+        public static string ShowAuctionBuyListingResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionBuyListingResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Buy Listing Result.
+        /// </summary>
+        public static string ShowAuctionBuyListingResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionBuyListingResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the result of cancelling an auction house listing to the game client..
+        /// </summary>
+        public static string ShowAuctionCancelListingResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionCancelListingResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Cancel Listing Result.
+        /// </summary>
+        public static string ShowAuctionCancelListingResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionCancelListingResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the result of claiming the auction house collection to the game client..
+        /// </summary>
+        public static string ShowAuctionClaimResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionClaimResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Claim Result.
+        /// </summary>
+        public static string ShowAuctionClaimResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionClaimResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends a page of the auction house collection of the player to the game client..
+        /// </summary>
+        public static string ShowAuctionCollectionPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionCollectionPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Collection.
+        /// </summary>
+        public static string ShowAuctionCollectionPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionCollectionPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the result of creating an auction house listing to the game client..
+        /// </summary>
+        public static string ShowAuctionCreateListingResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionCreateListingResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Create Listing Result.
+        /// </summary>
+        public static string ShowAuctionCreateListingResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionCreateListingResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the goods list of the auction house to the game client..
+        /// </summary>
+        public static string ShowAuctionGoodsListPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionGoodsListPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Goods List.
+        /// </summary>
+        public static string ShowAuctionGoodsListPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionGoodsListPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the price of a quantity of auction house goods to the game client..
+        /// </summary>
+        public static string ShowAuctionGoodsQuotePlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionGoodsQuotePlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Goods Quote.
+        /// </summary>
+        public static string ShowAuctionGoodsQuotePlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionGoodsQuotePlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Opens and closes the auction house window of the game client with the broker state, which carries the market rules..
+        /// </summary>
+        public static string ShowAuctionHouseStatePlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionHouseStatePlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - State.
+        /// </summary>
+        public static string ShowAuctionHouseStatePlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionHouseStatePlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Notifies the game client about sold or expired auction house listings and waiting deliveries..
+        /// </summary>
+        public static string ShowAuctionNoticePlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionNoticePlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Notice.
+        /// </summary>
+        public static string ShowAuctionNoticePlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionNoticePlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the own auction house listings of the player to the game client..
+        /// </summary>
+        public static string ShowAuctionOwnListingsPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionOwnListingsPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Own Listings.
+        /// </summary>
+        public static string ShowAuctionOwnListingsPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionOwnListingsPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the result of an auction house equipment search to the game client..
+        /// </summary>
+        public static string ShowAuctionSearchResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionSearchResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Search Result.
+        /// </summary>
+        public static string ShowAuctionSearchResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionSearchResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sends to the game client whether an item can be listed in the auction house..
+        /// </summary>
+        public static string ShowAuctionSellCheckResultPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowAuctionSellCheckResultPlugIn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auction House - Sell Check Result.
+        /// </summary>
+        public static string ShowAuctionSellCheckResultPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowAuctionSellCheckResultPlugIn_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The default implementation of the IShowAvailableQuestsPlugIn which is forwarding everything to the game client with specific data packets..
         /// </summary>
         public static string ShowAvailableQuestsPlugIn_Description {
