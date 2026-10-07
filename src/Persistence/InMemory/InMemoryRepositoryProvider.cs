@@ -4,6 +4,7 @@
 
 namespace MUnique.OpenMU.Persistence.InMemory;
 
+using System.Threading;
 using MUnique.OpenMU.Persistence.BasicModel;
 
 /// <summary>
@@ -11,6 +12,11 @@ using MUnique.OpenMU.Persistence.BasicModel;
 /// </summary>
 public class InMemoryRepositoryProvider : BaseRepositoryProvider
 {
+    /// <summary>
+    /// Gets the lock which serializes the transactions of all contexts of this provider, in place of row locks.
+    /// </summary>
+    internal SemaphoreSlim TransactionLock { get; } = new(1, 1);
+
     /// <summary>
     /// Gets all <see cref="IMemoryRepository"/> which were added to this manager.
     /// </summary>

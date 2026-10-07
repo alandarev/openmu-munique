@@ -110,4 +110,25 @@ public interface IPlayerContext : IContext
     ValueTask<IReadOnlyList<CastleSiegePendingReward>> GetPendingCastleSiegeRewardsAsync(
         Guid characterId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs an operation which changes entities of this context as one database transaction: the operation may lock
+    /// rows (<see cref="IPersistenceTransaction.LockAsync{T}"/>) and change tracked entities in memory; afterwards all
+    /// changes of this context are saved and committed together.
+    /// </summary>
+    /// <remarks>
+    /// No other operation on this context runs in between; calls of this context's methods from within the operation
+    /// are allowed, except <see cref="IContext.SaveChangesAsync"/> and nested transactions.
+    /// When the operation, the save or the commit fails, the transaction is rolled back, the restore actions
+    /// registered with <see cref="IPersistenceTransaction.OnRollback"/> run in reverse order, entities which got added
+    /// to this context during the operation are detached, and the exception is rethrown. The operation has to register
+    /// a restore action for every in-memory change it makes before such a failure can happen, so that the in-memory
+    /// objects match the database again.
+    /// The locked entities are detached when the transaction ends.
+    /// </remarks>
+    /// <typeparam name="T">The type of the result.</typeparam>
+    /// <param name="operation">The operation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The result of the operation, after the commit.</returns>
+    ValueTask<T> RunInTransactionAsync<T>(Func<IPersistenceTransaction, ValueTask<T>> operation, CancellationToken cancellationToken = default);
 }

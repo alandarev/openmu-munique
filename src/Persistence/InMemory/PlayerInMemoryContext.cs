@@ -92,4 +92,27 @@ public class PlayerInMemoryContext : InMemoryContext, IPlayerContext
             .ConfigureAwait(false);
         return pendingRewards.Where(reward => reward.CharacterId == characterId).ToList();
     }
+
+    /// <inheritdoc />
+    public async ValueTask<T> RunInTransactionAsync<T>(Func<IPersistenceTransaction, ValueTask<T>> operation, CancellationToken cancellationToken = default)
+    {
+        await this.Provider.TransactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var transaction = new InMemoryTransaction(this);
+            try
+            {
+                return await operation(transaction).ConfigureAwait(false);
+            }
+            catch
+            {
+                transaction.Restore();
+                throw;
+            }
+        }
+        finally
+        {
+            this.Provider.TransactionLock.Release();
+        }
+    }
 }

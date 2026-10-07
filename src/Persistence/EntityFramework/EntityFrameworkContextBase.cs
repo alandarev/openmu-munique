@@ -24,6 +24,11 @@ internal class EntityFrameworkContextBase : IContext
     private readonly bool _isOwner;
     private readonly IConfigurationChangeListener? _changeListener;
     private readonly AsyncLock _lock = new();
+
+    /// <summary>
+    /// Marks the asynchronous flow which runs a transaction of <see cref="RunInTransactionAsync{T}"/> and holds <see cref="_lock"/>.
+    /// </summary>
+    private readonly AsyncLocal<bool> _isTransactionFlow = new();
     private readonly ILogger _logger;
     private bool _isDisposed;
     private int _notificationSuspensions;
@@ -64,11 +69,16 @@ internal class EntityFrameworkContextBase : IContext
     /// <summary>
     /// Gets the repository provider.
     /// </summary>
-    protected IContextAwareRepositoryProvider RepositoryProvider { get; }
+    protected internal IContextAwareRepositoryProvider RepositoryProvider { get; }
 
     /// <inheritdoc/>
     public async ValueTask<bool> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (this._isTransactionFlow.Value)
+        {
+            throw new InvalidOperationException("The changes of a transaction are saved when it gets committed.");
+        }
+
         // A player's entities can be mutated by game logic on a flow that is not serialized against
         // this save (for example item destruction on an attacker's thread during combat). Such a
         // concurrent mutation makes change detection throw while it enumerates a tracked collection.
@@ -92,6 +102,71 @@ internal class EntityFrameworkContextBase : IContext
         }
     }
 
+    /// <summary>
+    /// Runs an operation as one database transaction, see <see cref="IPlayerContext.RunInTransactionAsync{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the result.</typeparam>
+    /// <param name="operation">The operation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The result of the operation, after the commit.</returns>
+    public async ValueTask<T> RunInTransactionAsync<T>(Func<IPersistenceTransaction, ValueTask<T>> operation, CancellationToken cancellationToken = default)
+    {
+        if (this._isTransactionFlow.Value)
+        {
+            throw new InvalidOperationException("Transactions can't be nested.");
+        }
+
+        if (this._changeListener is not null)
+        {
+            // The configuration change publishing works on the changes of a single save, which is not needed for transactions yet.
+            throw new NotSupportedException("Transactions are not supported for contexts with a configuration change listener.");
+        }
+
+        using var l = await this._lock.LockAsync(cancellationToken).ConfigureAwait(false);
+        this._isTransactionFlow.Value = true;
+        var transaction = new EntityFrameworkTransaction(this);
+        var addedBefore = this.GetAddedEntities();
+        try
+        {
+            await using var databaseTransaction = await this.Context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var result = await operation(transaction).ConfigureAwait(false);
+                await this.Context.SaveChangesAsync(false, cancellationToken).ConfigureAwait(false);
+                await databaseTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                this.Context.ChangeTracker.AcceptAllChanges();
+                return result;
+            }
+            catch
+            {
+                try
+                {
+                    await databaseTransaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    // The database rolls the transaction back by itself when the connection is lost.
+                    this._logger.LogWarning(ex, "Error while rolling back a transaction.");
+                }
+
+                transaction.Restore(this._logger);
+                foreach (var added in this.GetAddedEntities().Where(entity => !addedBefore.Contains(entity)))
+                {
+                    this.Context.Entry(added).State = EntityState.Detached;
+                }
+
+                this.UnmarkRestoredProperties();
+
+                throw;
+            }
+        }
+        finally
+        {
+            transaction.DetachLockedEntities();
+            this._isTransactionFlow.Value = false;
+        }
+    }
+
     /// <inheritdoc />
     public IDisposable SuspendChangeNotifications()
     {
@@ -102,14 +177,14 @@ internal class EntityFrameworkContextBase : IContext
     /// <inheritdoc />
     public bool Detach(object item)
     {
-        using var l = this._lock.Lock();
+        using var l = this.AcquireLock();
         return this.DetachInternal(item);
     }
 
     /// <inheritdoc />
     public void Attach(object item)
     {
-        using var l = this._lock.Lock();
+        using var l = this.AcquireLock();
         this.Context.Attach(item);
     }
 
@@ -117,7 +192,7 @@ internal class EntityFrameworkContextBase : IContext
     public T CreateNew<T>(params object?[] args)
         where T : class
     {
-        using var l = this._lock.Lock();
+        using var l = this.AcquireLock();
         var instance = typeof(CachingEntityFrameworkContext).Assembly.CreateNew<T>(args);
         this.Context.Add(instance);
         return instance;
@@ -126,7 +201,7 @@ internal class EntityFrameworkContextBase : IContext
     /// <inheritdoc />
     public object CreateNew(Type type, params object?[] args)
     {
-        using var l = this._lock.Lock();
+        using var l = this.AcquireLock();
         var instance = typeof(CachingEntityFrameworkContext).Assembly.CreateNew(type, args);
         this.Context.Add(instance);
         return instance;
@@ -136,7 +211,7 @@ internal class EntityFrameworkContextBase : IContext
     public async ValueTask<bool> DeleteAsync<T>(T obj)
         where T : class
     {
-        using var l = await this._lock.LockAsync();
+        using var l = await this.AcquireLockAsync().ConfigureAwait(false);
 
         var result = false;
         var entry = this.Context.Entry(obj);
@@ -168,7 +243,7 @@ internal class EntityFrameworkContextBase : IContext
     public async Task<T?> GetByIdAsync<T>(Guid id, CancellationToken cancellationToken)
         where T : class
     {
-        using var l = await this._lock.LockAsync(cancellationToken);
+        using var l = await this.AcquireLockAsync(cancellationToken).ConfigureAwait(false);
         using var context = this.RepositoryProvider.ContextStack.UseContext(this);
         return await this.GetRepository<T>().GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
     }
@@ -176,7 +251,7 @@ internal class EntityFrameworkContextBase : IContext
     /// <inheritdoc/>
     public async Task<object?> GetByIdAsync(Guid id, Type type, CancellationToken cancellationToken)
     {
-        using var l = await this._lock.LockAsync(cancellationToken).ConfigureAwait(false);
+        using var l = await this.AcquireLockAsync(cancellationToken).ConfigureAwait(false);
         using var context = this.RepositoryProvider.ContextStack.UseContext(this);
         return await this.GetRepository(type).GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
     }
@@ -185,7 +260,7 @@ internal class EntityFrameworkContextBase : IContext
     public async ValueTask<IEnumerable<T>> GetAsync<T>(CancellationToken cancellationToken)
         where T : class
     {
-        using var l = await this._lock.LockAsync(cancellationToken).ConfigureAwait(false);
+        using var l = await this.AcquireLockAsync(cancellationToken).ConfigureAwait(false);
         using var context = this.RepositoryProvider.ContextStack.UseContext(this);
         return await this.GetRepository<T>().GetAllAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -193,7 +268,7 @@ internal class EntityFrameworkContextBase : IContext
     /// <inheritdoc/>
     public async ValueTask<IEnumerable> GetAsync(Type type, CancellationToken cancellationToken)
     {
-        using var l = await this._lock.LockAsync(cancellationToken).ConfigureAwait(false);
+        using var l = await this.AcquireLockAsync(cancellationToken).ConfigureAwait(false);
         using var context = this.RepositoryProvider.ContextStack.UseContext(this);
         return await this.GetRepository(type).GetAllAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -306,7 +381,7 @@ internal class EntityFrameworkContextBase : IContext
 
     private async ValueTask<bool> SaveChangesCoreAsync(CancellationToken cancellationToken)
     {
-        using var l = await this._lock.LockAsync();
+        using var l = await this.AcquireLockAsync().ConfigureAwait(false);
 
         // when we have a change publisher attached, we want to get the changed entries before accepting them.
         // Otherwise, we can accept them.
@@ -341,6 +416,45 @@ internal class EntityFrameworkContextBase : IContext
             sender = s;
             args = e;
         }
+    }
+
+    /// <summary>
+    /// Marks properties which the change detection of a failed save marked as modified, and which got restored to
+    /// their original value since, as unmodified again; entities without modified properties become unchanged.
+    /// </summary>
+    private void UnmarkRestoredProperties()
+    {
+        this.Context.ChangeTracker.DetectChanges();
+        foreach (var entry in this.Context.ChangeTracker.Entries().Where(entry => entry.State == EntityState.Modified).ToList())
+        {
+            foreach (var property in entry.Properties.Where(property => property.IsModified && Equals(property.CurrentValue, property.OriginalValue)))
+            {
+                property.IsModified = false;
+            }
+
+            if (!entry.Properties.Any(property => property.IsModified))
+            {
+                entry.State = EntityState.Unchanged;
+            }
+        }
+    }
+
+    private HashSet<object> GetAddedEntities()
+    {
+        return this.Context.ChangeTracker.Entries()
+            .Where(entry => entry.State == EntityState.Added)
+            .Select(entry => entry.Entity)
+            .ToHashSet(ReferenceEqualityComparer.Instance);
+    }
+
+    private IDisposable AcquireLock()
+    {
+        return this._isTransactionFlow.Value ? NoopDisposable.Instance : this._lock.Lock();
+    }
+
+    private async ValueTask<IDisposable> AcquireLockAsync(CancellationToken cancellationToken = default)
+    {
+        return this._isTransactionFlow.Value ? NoopDisposable.Instance : await this._lock.LockAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private bool DetachInternal(object item)
