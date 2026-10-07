@@ -6,6 +6,8 @@ namespace MUnique.OpenMU.Tests.AuctionHouse;
 
 using System.Threading;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using MUnique.OpenMU.Persistence.EntityFramework;
 using Npgsql;
@@ -42,10 +44,11 @@ internal sealed class PostgreSqlTestDatabase : IAsyncDisposable
     public PersistenceContextProvider ContextProvider { get; }
 
     /// <summary>
-    /// Creates a new database with the current schema, or ignores the calling test when no server is configured.
+    /// Creates a new database, or ignores the calling test when no server is configured.
     /// </summary>
+    /// <param name="targetMigration">The migration up to which the schema is created; <see langword="null"/> for all migrations.</param>
     /// <returns>The created database.</returns>
-    public static async Task<PostgreSqlTestDatabase> CreateAsync()
+    public static async Task<PostgreSqlTestDatabase> CreateAsync(string? targetMigration = null)
     {
         var server = Environment.GetEnvironmentVariable(ServerVariableName);
         if (string.IsNullOrWhiteSpace(server))
@@ -65,7 +68,16 @@ internal sealed class PostgreSqlTestDatabase : IAsyncDisposable
         var databaseName = "openmu_test_" + Guid.NewGuid().ToString("N");
         SettingProvider.Use(new NpgsqlConnectionStringBuilder(server), databaseName);
         var database = new PostgreSqlTestDatabase(databaseName);
-        using var update = await database.ContextProvider.ReCreateDatabaseAsync().ConfigureAwait(false);
+        if (targetMigration is null)
+        {
+            using var update = await database.ContextProvider.ReCreateDatabaseAsync().ConfigureAwait(false);
+        }
+        else
+        {
+            await using var context = new EntityDataContext();
+            await context.GetService<IMigrator>().MigrateAsync(targetMigration).ConfigureAwait(false);
+        }
+
         return database;
     }
 

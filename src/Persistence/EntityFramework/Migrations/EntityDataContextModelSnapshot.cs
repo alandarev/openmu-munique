@@ -309,6 +309,180 @@ namespace MUnique.OpenMU.Persistence.EntityFramework.Migrations
                     b.ToTable("AttributeRequirement", "config");
                 });
 
+            modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionCollectionEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EscrowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Fee")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Gross")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("ItemGroup")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("ItemLevel")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("ItemNumber")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OwnerCharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("UncollectedMoney")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EscrowId")
+                        .IsUnique();
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("OwnerCharacterId");
+
+                    b.ToTable("AuctionCollectionEntry", "data");
+                });
+
+            modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionListing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EscrowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte>("ItemGroup")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("ItemLevel")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("ItemNumber")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ListedQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("PostingFee")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RemainingQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SellerCharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SellerName")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<byte>("State")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("UnitPrice")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EscrowId")
+                        .IsUnique();
+
+                    b.HasIndex("SellerCharacterId");
+
+                    b.HasIndex("State", "ExpiresAt");
+
+                    b.ToTable("AuctionListing", "data");
+                });
+
+            modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionSale", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuyerCharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BuyerName")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<long>("Fee")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Gross")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("ItemGroup")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("ItemLevel")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("ItemNumber")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SellerCharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SellerName")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime>("SoldAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("UnitPrice")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("ItemGroup", "ItemNumber", "ItemLevel", "SoldAt");
+
+                    b.ToTable("AuctionSale", "data");
+                });
+
             modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.BattleZoneDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4044,6 +4218,38 @@ namespace MUnique.OpenMU.Persistence.EntityFramework.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("RawAttribute");
+                });
+
+            modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionCollectionEntry", b =>
+                {
+                    b.HasOne("MUnique.OpenMU.Persistence.EntityFramework.Model.ItemStorage", "RawEscrow")
+                        .WithOne()
+                        .HasForeignKey("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionCollectionEntry", "EscrowId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MUnique.OpenMU.Persistence.EntityFramework.Model.Character", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerCharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RawEscrow");
+                });
+
+            modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionListing", b =>
+                {
+                    b.HasOne("MUnique.OpenMU.Persistence.EntityFramework.Model.ItemStorage", "RawEscrow")
+                        .WithOne()
+                        .HasForeignKey("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionListing", "EscrowId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MUnique.OpenMU.Persistence.EntityFramework.Model.Character", null)
+                        .WithMany()
+                        .HasForeignKey("SellerCharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RawEscrow");
                 });
 
             modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.BattleZoneDefinition", b =>

@@ -27,6 +27,9 @@ public class ExtendedTypeContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.Ignore<MUnique.OpenMU.DataModel.Statistics.MiniGameRankingEntry>();
         modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.Account>();
         modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.AppearanceData>();
+        modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.AuctionCollectionEntry>();
+        modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.AuctionListing>();
+        modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.AuctionSale>();
         modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.CastleSiegeData>();
         modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.CastleSiegeGuild>();
         modelBuilder.Ignore<MUnique.OpenMU.DataModel.Entities.CastleSiegeGuildRegistration>();
@@ -128,6 +131,8 @@ public class ExtendedTypeContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.Entity<Account>().HasMany(entity => entity.RawCharacters).WithOne().OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Account>().HasMany(entity => entity.RawAttributes).WithOne().OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<AppearanceData>().HasMany(entity => entity.RawEquippedItems).WithOne().OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AuctionCollectionEntry>().HasOne(entity => entity.RawEscrow).WithOne().OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AuctionListing>().HasOne(entity => entity.RawEscrow).WithOne().OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<CastleSiegeData>().HasMany(entity => entity.RawNpcStates).WithOne().OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<CastleSiegeData>().HasMany(entity => entity.RawGuilds).WithOne().OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Character>().HasMany(entity => entity.RawAttributes).WithOne().OnDelete(DeleteBehavior.Cascade);

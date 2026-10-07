@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // </copyright>
 
-namespace MUnique.OpenMU.GameLogic.AuctionHouse;
+namespace MUnique.OpenMU.DataModel.Entities;
 
 /// <summary>
 /// The kind of an auction house listing.

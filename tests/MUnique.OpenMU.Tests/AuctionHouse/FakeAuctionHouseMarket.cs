@@ -4,6 +4,7 @@
 
 namespace MUnique.OpenMU.Tests.AuctionHouse;
 
+using MUnique.OpenMU.DataModel.Entities;
 using MUnique.OpenMU.GameLogic;
 using MUnique.OpenMU.GameLogic.AuctionHouse;
 
