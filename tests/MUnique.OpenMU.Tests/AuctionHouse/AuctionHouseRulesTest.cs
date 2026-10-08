@@ -93,7 +93,7 @@ public class AuctionHouseRulesTest
             SaleFeeBasisPoints = 700,
             DurationHours = [12, 48],
             MaximumActiveListings = 10,
-            PriceSignificantDigits = 3,
+            PriceStepPrecision = 3,
             Goods = [new() { Group = 14, Number = 13, Name = "Jewel of Bless" }, new() { Group = 13, Number = 0, Name = "Guardian Angel" }],
         };
         var configuration = new Persistence.BasicModel.PlugInConfiguration();
@@ -107,7 +107,7 @@ public class AuctionHouseRulesTest
         Assert.That(roundTripped.SaleFeeBasisPoints, Is.EqualTo(700));
         Assert.That(roundTripped.DurationHours, Is.EqualTo(new byte[] { 12, 48 }));
         Assert.That(roundTripped.MaximumActiveListings, Is.EqualTo(10));
-        Assert.That(roundTripped.PriceSignificantDigits, Is.EqualTo(3));
+        Assert.That(roundTripped.PriceStepPrecision, Is.EqualTo(3));
         Assert.That(roundTripped.Goods.Select(goods => (goods.Group, goods.Number, goods.Name)), Is.EqualTo(new[] { ((byte)14, (short)13, "Jewel of Bless"), ((byte)13, (short)0, "Guardian Angel") }));
     }
 

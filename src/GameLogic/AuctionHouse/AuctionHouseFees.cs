@@ -94,42 +94,61 @@ public static class AuctionHouseFees
         => TryGetPostingFee(state.PostingFeeFlat, state.PostingFeeBasisPoints, quantity, unitPrice, state.MaximumPrice, out postingFee);
 
     /// <summary>
-    /// Determines whether a listing price is on a price step: it has at most the given count of significant
-    /// digits, e.g. with 2 digits 590,000, 12,000,000, 2,300 and 95 are on a step, 595,000 and 12,500,000 are not.
+    /// Determines whether a listing price is on a price step: it is a multiple of its step
+    /// (<see cref="GetPriceStep"/>). With precision 2, e.g. 350, 8,950, 590,000, 595,000 and 12,500,000 are on a
+    /// step, 351, 594,000 and 12,550,000 are not.
     /// </summary>
     /// <remarks>
     /// Every listing price is restricted, the unit price of goods and the price of an item listing; purchase totals
     /// are not. The market answers <see cref="AuctionHouseResult.PriceNotOnStep"/> to a listing off a step
-    /// (see <see cref="IAuctionHouseMarket.CreateListingAsync"/>).
+    /// (see <see cref="IAuctionHouseMarket.CreateListingAsync"/>) and never rounds it.
     /// </remarks>
     /// <param name="price">The unit price in Zen.</param>
-    /// <param name="significantDigits">The count of significant digits which the price may have; 0 means no restriction.</param>
-    /// <returns><see langword="true"/>, if the price has at most the given count of significant digits; otherwise, <see langword="false"/>.</returns>
-    public static bool IsOnPriceStep(uint price, byte significantDigits)
+    /// <param name="precision">The precision of the price steps; 0 means no restriction.</param>
+    /// <returns><see langword="true"/>, if the price is a multiple of its step; otherwise, <see langword="false"/>.</returns>
+    public static bool IsOnPriceStep(uint price, byte precision)
     {
-        if (significantDigits == 0)
+        return price % GetPriceStep(price, precision) == 0;
+    }
+
+    /// <summary>
+    /// Gets the price step of a price: the largest number of the form 1, 2 or 5 x 10^n which is at most
+    /// floor(price / 10^precision), at least 1. With precision 2, every step is 0.4-1 % of the price, e.g. 5,000 for
+    /// 595,000 and 100,000 for 12,500,000; below 200 the step is 1.
+    /// </summary>
+    /// <param name="price">The price in Zen.</param>
+    /// <param name="precision">The precision of the price steps; 0 means no restriction, i.e. a step of 1.</param>
+    /// <returns>The price step, at least 1.</returns>
+    public static uint GetPriceStep(uint price, byte precision)
+    {
+        if (precision == 0)
         {
-            return true;
+            return 1;
         }
 
-        var step = 1UL;
-        for (var digits = (ulong)price; digits >= Pow10(significantDigits); digits /= 10)
+        var scaled = price;
+        for (var i = 0; i < precision && scaled > 0; i++)
         {
-            step *= 10;
+            scaled /= 10;
         }
 
-        return price % step == 0;
-
-        static ulong Pow10(byte exponent)
+        if (scaled == 0)
         {
-            var result = 1UL;
-            for (var i = 0; i < exponent && result <= uint.MaxValue; i++)
-            {
-                result *= 10;
-            }
-
-            return result;
+            return 1;
         }
+
+        var magnitude = 1UL;
+        while (magnitude * 10 <= scaled)
+        {
+            magnitude *= 10;
+        }
+
+        if (magnitude * 5 <= scaled)
+        {
+            return (uint)(magnitude * 5);
+        }
+
+        return magnitude * 2 <= scaled ? (uint)(magnitude * 2) : (uint)magnitude;
     }
 
     /// <summary>

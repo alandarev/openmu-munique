@@ -29,7 +29,7 @@ Open: the client shows the auction house window with these rules. Closed: the cl
 | 26 | 1 | Byte |  | Flags; Bit 0: the posting fee is refunded on cancel. |
 | 27 | 1 | Byte |  | DurationCount; The count of offered durations, 1 to 4. |
 | 28 | 4 | Binary |  | Durations; The offered listing durations in hours; unused ones are 0. |
-| 32 | 1 | Byte |  | PriceDigits; The count of significant digits which every listing price (goods unit price and item price) may have; 0 = any. |
+| 32 | 1 | Byte |  | PriceStepPrecision; The precision of the price steps of every listing price (goods unit price and item price): the step of a price p is the largest 1, 2 or 5 x 10^n which is at most p / 10^precision, at least 1, and a price must be a multiple of its step; 0 = any. |
 
 ### AuctionHouseWindowState Enum
 

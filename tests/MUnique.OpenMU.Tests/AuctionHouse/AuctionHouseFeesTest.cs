@@ -162,7 +162,7 @@ public class AuctionHouseFeesTest
 
     /// <summary>
     /// The default rules of the operator: no flat posting fee, 5 % posting fee, 10 % sale fee, 48 hours,
-    /// 2 significant digits of every listing price.
+    /// price step precision 2 for every listing price.
     /// </summary>
     [Test]
     public void DefaultRules()
@@ -177,52 +177,138 @@ public class AuctionHouseFeesTest
         Assert.That(rules.SaleFeeBasisPoints, Is.EqualTo(1_000));
         Assert.That(rules.RefundPostingFeeOnCancel, Is.False);
         Assert.That(rules.DurationHours, Is.EqualTo(new byte[] { 48 }));
-        Assert.That(rules.PriceSignificantDigits, Is.EqualTo(2));
+        Assert.That(rules.PriceStepPrecision, Is.EqualTo(2));
         Assert.That(rules.MaximumRequestsPerSecond, Is.EqualTo(5));
-        Assert.That(AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None).PriceSignificantDigits, Is.EqualTo(2));
+        Assert.That(AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None).PriceStepPrecision, Is.EqualTo(2));
     }
 
     /// <summary>
-    /// A listing price is on a price step when it has at most the given count of significant digits.
+    /// A listing price is on a price step when it is a multiple of its step, the largest 1, 2 or 5 x 10^n which is
+    /// at most price / 10^precision, at least 1.
     /// </summary>
     /// <param name="price">The unit price.</param>
-    /// <param name="digits">The count of significant digits.</param>
+    /// <param name="precision">The price step precision.</param>
     /// <param name="expected">The expected result.</param>
+    [TestCase(7u, (byte)2, true)]
+    [TestCase(150u, (byte)2, true)]
+    [TestCase(199u, (byte)2, true)]
+    [TestCase(200u, (byte)2, true)]
+    [TestCase(350u, (byte)2, true)]
+    [TestCase(8_900u, (byte)2, true)]
+    [TestCase(8_950u, (byte)2, true)]
+    [TestCase(590_000u, (byte)2, true)]
+    [TestCase(595_000u, (byte)2, true)]
+    [TestCase(600_000u, (byte)2, true)]
+    [TestCase(1_000_000u, (byte)2, true)]
+    [TestCase(1_010_000u, (byte)2, true)]
+    [TestCase(2_000_000u, (byte)2, true)]
+    [TestCase(5_000_000u, (byte)2, true)]
+    [TestCase(12_500_000u, (byte)2, true)]
+    [TestCase(12_600_000u, (byte)2, true)]
+    [TestCase(2_000_000_000u, (byte)2, true)]
+    [TestCase(351u, (byte)2, false)]
+    [TestCase(594_000u, (byte)2, false)]
+    [TestCase(12_550_000u, (byte)2, false)]
+    [TestCase(29_932_843u, (byte)2, false)]
+    [TestCase(93_240_000u, (byte)2, false)]
+    [TestCase(4_294_967_295u, (byte)2, false)]
     [TestCase(2_440_000u, (byte)3, true)]
     [TestCase(2_449_999u, (byte)3, false)]
-    [TestCase(999_000u, (byte)3, true)]
-    [TestCase(999_999u, (byte)3, false)]
-    [TestCase(1_000_000u, (byte)3, true)]
-    [TestCase(1_010_000u, (byte)3, true)]
-    [TestCase(1_001_000u, (byte)3, false)]
-    [TestCase(1u, (byte)3, true)]
-    [TestCase(999u, (byte)3, true)]
-    [TestCase(1_234u, (byte)3, false)]
-    [TestCase(1_230u, (byte)3, true)]
+    [TestCase(594_000u, (byte)3, true)]
+    [TestCase(595_500u, (byte)3, true)]
+    [TestCase(595_100u, (byte)3, false)]
     [TestCase(1_234u, (byte)1, false)]
     [TestCase(2_000_000_000u, (byte)1, true)]
-    [TestCase(2_147_483_647u, (byte)3, false)]
-    [TestCase(2_140_000_000u, (byte)3, true)]
-    [TestCase(2_147_483_647u, (byte)10, true)]
-    [TestCase(4_294_967_295u, (byte)10, true)]
     [TestCase(4_294_967_295u, (byte)9, false)]
-    [TestCase(4_290_000_000u, (byte)3, true)]
+    [TestCase(4_294_967_294u, (byte)9, true)]
+    [TestCase(4_294_967_295u, (byte)10, true)]
     [TestCase(4_294_967_295u, (byte)255, true)]
-    [TestCase(595_000u, (byte)2, false)]
-    [TestCase(590_000u, (byte)2, true)]
-    [TestCase(600_000u, (byte)2, true)]
-    [TestCase(12_500_000u, (byte)2, false)]
-    [TestCase(12_000_000u, (byte)2, true)]
-    [TestCase(29_932_843u, (byte)2, false)]
-    [TestCase(350u, (byte)2, true)]
-    [TestCase(2_300u, (byte)2, true)]
-    [TestCase(95u, (byte)2, true)]
-    [TestCase(7u, (byte)2, true)]
-    [TestCase(2_000_000_000u, (byte)2, true)]
-    [TestCase(2_449_999u, (byte)0, true)]
+    [TestCase(594_000u, (byte)0, true)]
+    [TestCase(29_932_843u, (byte)0, true)]
     [TestCase(4_294_967_295u, (byte)0, true)]
-    public void PriceStep(uint price, byte digits, bool expected)
+    public void PriceStep(uint price, byte precision, bool expected)
     {
-        Assert.That(AuctionHouseFees.IsOnPriceStep(price, digits), Is.EqualTo(expected));
+        Assert.That(AuctionHouseFees.IsOnPriceStep(price, precision), Is.EqualTo(expected));
+    }
+
+    /// <summary>
+    /// The price step of a price with the default precision.
+    /// </summary>
+    /// <param name="price">The price.</param>
+    /// <param name="expected">The expected step.</param>
+    [TestCase(0u, 1u)]
+    [TestCase(199u, 1u)]
+    [TestCase(200u, 2u)]
+    [TestCase(499u, 2u)]
+    [TestCase(500u, 5u)]
+    [TestCase(595_000u, 5_000u)]
+    [TestCase(1_000_000u, 10_000u)]
+    [TestCase(12_500_000u, 100_000u)]
+    [TestCase(2_000_000_000u, 20_000_000u)]
+    [TestCase(4_294_967_295u, 20_000_000u)]
+    public void PriceStepOfPrice(uint price, uint expected)
+    {
+        Assert.That(AuctionHouseFees.GetPriceStep(price, 2), Is.EqualTo(expected));
+    }
+
+    /// <summary>
+    /// Walking the grid of valid prices with the default precision from 1 up to 2,000,000,000: every next grid point
+    /// is valid and every step is at most 1 % of the price (0.4-1 % from 100 on), the largest valid price below
+    /// each grid point is the previous grid point, and there are 2,650 valid prices.
+    /// </summary>
+    [Test]
+    public void PriceStepGridWalk()
+    {
+        const uint maximum = 2_000_000_000;
+        const byte precision = 2;
+        var count = 1;
+        var previous = 1u;
+        while (true)
+        {
+            var next = NextPriceOnStep(previous, precision);
+            if (next > maximum)
+            {
+                break;
+            }
+
+            Assert.That(AuctionHouseFees.IsOnPriceStep((uint)next, precision), Is.True, $"{next} after {previous}");
+            Assert.That(PreviousPriceOnStep((uint)next, precision), Is.EqualTo(previous), $"below {next}");
+            var step = AuctionHouseFees.GetPriceStep((uint)next, precision);
+            if (next >= 100)
+            {
+                Assert.That(step * 1_000UL, Is.InRange(next * 4, next * 10), $"step of {next}");
+            }
+
+            count++;
+            previous = (uint)next;
+        }
+
+        Assert.That(previous, Is.EqualTo(maximum));
+        Assert.That(count, Is.EqualTo(2_650));
+    }
+
+    /// <summary>
+    /// Gets the next grid point after a valid price: the next multiple of its step.
+    /// </summary>
+    /// <param name="price">The valid price.</param>
+    /// <param name="precision">The price step precision.</param>
+    /// <returns>The next grid point, which may exceed <see cref="uint.MaxValue"/>.</returns>
+    private static ulong NextPriceOnStep(uint price, byte precision)
+    {
+        var step = (ulong)AuctionHouseFees.GetPriceStep(price, precision);
+        return ((price / step) + 1) * step;
+    }
+
+    /// <summary>
+    /// Gets the largest valid price below a price: the price below, rounded down to its step.
+    /// </summary>
+    /// <param name="price">The price, at least 2.</param>
+    /// <param name="precision">The price step precision.</param>
+    /// <returns>The largest valid price below the price.</returns>
+    private static uint PreviousPriceOnStep(uint price, byte precision)
+    {
+        var below = price - 1;
+        var step = AuctionHouseFees.GetPriceStep(below, precision);
+        return below / step * step;
     }
 }

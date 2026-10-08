@@ -389,7 +389,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             return Refused(AuctionHouseResult.NotEligible);
         }
 
-        if (!AuctionHouseFees.IsOnPriceStep(order.UnitPrice, rules.PriceSignificantDigits))
+        if (!AuctionHouseFees.IsOnPriceStep(order.UnitPrice, rules.PriceStepPrecision))
         {
             return Refused(AuctionHouseResult.PriceNotOnStep);
         }

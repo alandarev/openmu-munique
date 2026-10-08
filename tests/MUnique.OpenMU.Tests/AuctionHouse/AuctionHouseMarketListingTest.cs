@@ -173,16 +173,16 @@ public class AuctionHouseMarketListingTest
     }
 
     /// <summary>
-    /// With the default rules, a goods unit price has at most two significant digits; a price off a step is
+    /// With the default rules, a goods unit price must be a multiple of its price step (about 1 %); a price off a step is
     /// refused with <see cref="AuctionHouseResult.PriceNotOnStep"/>, never rounded, and changes nothing.
     /// </summary>
     /// <param name="unitPrice">The unit price.</param>
     /// <param name="expected">The expected result.</param>
-    [TestCase(595_000u, AuctionHouseResult.PriceNotOnStep)]
-    [TestCase(590_000u, AuctionHouseResult.Success)]
+    [TestCase(594_000u, AuctionHouseResult.PriceNotOnStep)]
+    [TestCase(595_000u, AuctionHouseResult.Success)]
     public async Task GoodsListingPriceStepsWithDefaultRulesAsync(uint unitPrice, AuctionHouseResult expected)
     {
-        Assert.That(this._helper.Rules.PriceSignificantDigits, Is.EqualTo(2));
+        Assert.That(this._helper.Rules.PriceStepPrecision, Is.EqualTo(2));
         await this._helper.AddItemsAsync(this._seller, this._helper.JewelOfBless, 2).ConfigureAwait(false);
 
         var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 2, unitPrice, 48, 0)).ConfigureAwait(false);
@@ -209,7 +209,7 @@ public class AuctionHouseMarketListingTest
     {
         var item = await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot).ConfigureAwait(false);
 
-        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 12_500_000, 48, 0)).ConfigureAwait(false);
+        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 12_550_000, 48, 0)).ConfigureAwait(false);
 
         Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.PriceNotOnStep));
         Assert.That(this._seller.Money, Is.EqualTo(100_000_000));
@@ -225,21 +225,21 @@ public class AuctionHouseMarketListingTest
     {
         await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot).ConfigureAwait(false);
 
-        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 12_000_000, 48, 0)).ConfigureAwait(false);
+        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 12_500_000, 48, 0)).ConfigureAwait(false);
 
         Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
         Assert.That(this._market.Index.Get(outcome.ListingId)?.Item, Is.Not.Null);
-        Assert.That(this._market.Index.Get(outcome.ListingId)?.UnitPrice, Is.EqualTo(12_000_000));
+        Assert.That(this._market.Index.Get(outcome.ListingId)?.UnitPrice, Is.EqualTo(12_500_000));
         Assert.That(this._seller.Inventory!.GetItem(Slot), Is.Null);
     }
 
     /// <summary>
-    /// 0 significant digits means no restriction, for goods and item listings alike.
+    /// A price step precision of 0 means no restriction, for goods and item listings alike.
     /// </summary>
     [Test]
-    public async Task ZeroPriceDigitsAllowAnyPriceAsync()
+    public async Task ZeroPriceStepPrecisionAllowsAnyPriceAsync()
     {
-        this._helper.Rules.PriceSignificantDigits = 0;
+        this._helper.Rules.PriceStepPrecision = 0;
         await this._helper.AddItemsAsync(this._seller, this._helper.JewelOfBless, 2).ConfigureAwait(false);
         await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot + 2).ConfigureAwait(false);
 

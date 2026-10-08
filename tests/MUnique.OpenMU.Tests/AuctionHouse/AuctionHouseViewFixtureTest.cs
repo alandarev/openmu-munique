@@ -61,7 +61,7 @@ public class AuctionHouseViewFixtureTest
             SaleFeeBasisPoints = 500,
             RefundPostingFeeOnCancel = true,
             DurationHours = [12, 24, 48, 72],
-            PriceSignificantDigits = 3,
+            PriceStepPrecision = 3,
         };
         var state = AuctionBrokerState.Create(rules, int.MaxValue, new AuctionSellerSummary(3, 2));
 
@@ -284,7 +284,7 @@ public class AuctionHouseViewFixtureTest
     [Test]
     public void StateOpenWithoutPriceStepsAnnouncesZeroDigits()
     {
-        var rules = new AuctionHouseRules { PriceSignificantDigits = 0 };
+        var rules = new AuctionHouseRules { PriceStepPrecision = 0 };
         var target = new byte[64];
 
         var length = ShowAuctionHouseStatePlugIn.Write(target, AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None));

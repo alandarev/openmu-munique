@@ -7437,8 +7437,8 @@
         <Field>
           <Index>32</Index>
           <Type>Byte</Type>
-          <Name>PriceDigits</Name>
-          <Description>The count of significant digits which every listing price (goods unit price and item price) may have; 0 = any.</Description>
+          <Name>PriceStepPrecision</Name>
+          <Description>The precision of the price steps of every listing price (goods unit price and item price): the step of a price p is the largest 1, 2 or 5 x 10^n which is at most p / 10^precision, at least 1, and a price must be a multiple of its step; 0 = any.</Description>
         </Field>
       </Fields>
     </Packet>
@@ -15399,7 +15399,7 @@
         </EnumValue>
         <EnumValue>
           <Name>PriceNotOnStep</Name>
-          <Description>A listing price has more significant digits than announced.</Description>
+          <Description>A listing price is not a multiple of its price step, see PriceStepPrecision.</Description>
           <Value>16</Value>
         </EnumValue>
       </Values>

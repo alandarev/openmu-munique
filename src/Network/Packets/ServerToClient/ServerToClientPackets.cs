@@ -20184,9 +20184,9 @@ public readonly struct AuctionHouseState
     }
 
     /// <summary>
-    /// Gets or sets the count of significant digits which every listing price (goods unit price and item price) may have; 0 = any.
+    /// Gets or sets the precision of the price steps of every listing price (goods unit price and item price): the step of a price p is the largest 1, 2 or 5 x 10^n which is at most p / 10^precision, at least 1, and a price must be a multiple of its step; 0 = any.
     /// </summary>
-    public byte PriceDigits
+    public byte PriceStepPrecision
     {
         get => this._data.Span[32];
         set => this._data.Span[32] = value;
@@ -40894,7 +40894,7 @@ public readonly struct MonsterSkillAnimation
             InternalError = 15,
 
         /// <summary>
-        /// A listing price has more significant digits than announced.
+        /// A listing price is not a multiple of its price step, see PriceStepPrecision.
         /// </summary>
             PriceNotOnStep = 16,
     }

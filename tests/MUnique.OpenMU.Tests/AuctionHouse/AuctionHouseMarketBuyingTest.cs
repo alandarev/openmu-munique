@@ -388,22 +388,23 @@ public class AuctionHouseMarketBuyingTest
     }
 
     /// <summary>
-    /// A goods listing created while three significant digits were allowed keeps its price of 595,000 Zen after the
-    /// rules allow only two, and stays buyable.
+    /// A goods listing created with a finer price step precision keeps its price of 594,000 Zen, which is off a step
+    /// with the default precision 2, and stays buyable.
     /// </summary>
     [Test]
-    public async Task ListingFromBeforeStricterPriceDigitsStaysBuyableAsync()
+    public async Task ListingFromBeforeCoarserPriceStepsStaysBuyableAsync()
     {
-        this._helper.Rules.PriceSignificantDigits = 3;
-        var (_, listingId) = await this.CreateGoodsListingAsync("older", 2, 595_000).ConfigureAwait(false);
-        this._helper.Rules.PriceSignificantDigits = 2;
+        this._helper.Rules.PriceStepPrecision = 3;
+        var (_, listingId) = await this.CreateGoodsListingAsync("older", 2, 594_000).ConfigureAwait(false);
+        this._helper.Rules.PriceStepPrecision = 2;
+        Assert.That(AuctionHouseFees.IsOnPriceStep(594_000, this._helper.Rules.PriceStepPrecision), Is.False);
 
-        var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 2, 1_190_000)).ConfigureAwait(false);
+        var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 2, 1_188_000)).ConfigureAwait(false);
 
         Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
-        Assert.That(outcome.Paid, Is.EqualTo(1_190_000));
-        Assert.That(this._buyer.Money, Is.EqualTo(998_810_000));
-        Assert.That((await this._helper.GetListingAsync(listingId).ConfigureAwait(false))!.UnitPrice, Is.EqualTo(595_000));
+        Assert.That(outcome.Paid, Is.EqualTo(1_188_000));
+        Assert.That(this._buyer.Money, Is.EqualTo(998_812_000));
+        Assert.That((await this._helper.GetListingAsync(listingId).ConfigureAwait(false))!.UnitPrice, Is.EqualTo(594_000));
     }
 
     private async ValueTask<(Player Seller, Guid ListingId, Item Item)> CreateItemListingAsync(uint price)

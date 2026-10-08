@@ -90,7 +90,7 @@ public enum AuctionHouseResult : byte
     InternalError = 15,
 
     /// <summary>
-    /// A listing price has more significant digits than the rules allow.
+    /// A listing price is not a multiple of its price step (see <see cref="AuctionHouseRules.PriceStepPrecision"/>).
     /// </summary>
     PriceNotOnStep = 16,
 }

@@ -69,7 +69,7 @@ public class ShowAuctionHouseStatePlugIn : IShowAuctionHouseStatePlugIn
         var durations = state.DurationHours.Take(AuctionHouseRules.MaximumDurationCount).ToArray();
         packet.DurationCount = (byte)durations.Length;
         durations.CopyTo(packet.Durations);
-        packet.PriceDigits = state.PriceSignificantDigits;
+        packet.PriceStepPrecision = state.PriceStepPrecision;
         return target.Length;
     }
 

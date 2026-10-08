@@ -67,11 +67,13 @@ public class AuctionHouseRules
     public List<byte> DurationHours { get; set; } = [48];
 
     /// <summary>
-    /// Gets or sets the count of significant digits which every listing price (the unit price of goods and the price
-    /// of an item listing) may have, so that sellers can't undercut each other by a single Zen and prices stay round;
+    /// Gets or sets the precision of the price steps which every listing price (the unit price of goods and the price
+    /// of an item listing) must be on, so that sellers can't undercut each other by a single Zen and prices stay round.
+    /// The step of a price p is the largest number of the form 1, 2 or 5 x 10^n which is at most p / 10^precision,
+    /// at least 1; a price is valid when it is a multiple of its step. With 2, every step is 0.4-1 % of the price;
     /// 0 means no restriction. See <see cref="AuctionHouseFees.IsOnPriceStep"/>.
     /// </summary>
-    public byte PriceSignificantDigits { get; set; } = 2;
+    public byte PriceStepPrecision { get; set; } = 2;
 
     /// <summary>
     /// Gets or sets the maximum count of auction house requests per second of a player;
