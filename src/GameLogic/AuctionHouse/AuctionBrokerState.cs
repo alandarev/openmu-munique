@@ -18,7 +18,7 @@ namespace MUnique.OpenMU.GameLogic.AuctionHouse;
 /// <param name="SaleFeeBasisPoints">The sale fee in basis points of the gross of each sale.</param>
 /// <param name="RefundPostingFeeOnCancel">A value indicating whether the posting fee is refunded when a listing is cancelled.</param>
 /// <param name="DurationHours">The offered listing durations in hours, at most <see cref="AuctionHouseRules.MaximumDurationCount"/>.</param>
-/// <param name="GoodsPriceSignificantDigits">The count of significant digits which a goods unit price may have; 0 means no restriction.</param>
+/// <param name="PriceSignificantDigits">The count of significant digits which a listing price may have; 0 means no restriction.</param>
 public sealed record AuctionBrokerState(
     byte PageSize,
     byte MaximumActiveListings,
@@ -31,7 +31,7 @@ public sealed record AuctionBrokerState(
     ushort SaleFeeBasisPoints,
     bool RefundPostingFeeOnCancel,
     IReadOnlyList<byte> DurationHours,
-    byte GoodsPriceSignificantDigits)
+    byte PriceSignificantDigits)
 {
     /// <summary>
     /// Creates the announced state for the rules, the inventory Zen limit of the game and the counts of a player.
@@ -55,6 +55,6 @@ public sealed record AuctionBrokerState(
             rules.SaleFeeBasisPoints,
             rules.RefundPostingFeeOnCancel,
             rules.GetOfferedDurations(),
-            rules.GoodsPriceSignificantDigits);
+            rules.PriceSignificantDigits);
     }
 }

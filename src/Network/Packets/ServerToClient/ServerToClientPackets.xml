@@ -7437,8 +7437,8 @@
         <Field>
           <Index>32</Index>
           <Type>Byte</Type>
-          <Name>GoodsPriceDigits</Name>
-          <Description>The count of significant digits which a goods unit price may have; 0 = any.</Description>
+          <Name>PriceDigits</Name>
+          <Description>The count of significant digits which every listing price (goods unit price and item price) may have; 0 = any.</Description>
         </Field>
       </Fields>
     </Packet>
@@ -15399,7 +15399,7 @@
         </EnumValue>
         <EnumValue>
           <Name>PriceNotOnStep</Name>
-          <Description>A goods unit price has more significant digits than announced.</Description>
+          <Description>A listing price has more significant digits than announced.</Description>
           <Value>16</Value>
         </EnumValue>
       </Values>

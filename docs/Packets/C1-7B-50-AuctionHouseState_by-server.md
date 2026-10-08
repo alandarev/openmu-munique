@@ -29,7 +29,7 @@ Open: the client shows the auction house window with these rules. Closed: the cl
 | 26 | 1 | Byte |  | Flags; Bit 0: the posting fee is refunded on cancel. |
 | 27 | 1 | Byte |  | DurationCount; The count of offered durations, 1 to 4. |
 | 28 | 4 | Binary |  | Durations; The offered listing durations in hours; unused ones are 0. |
-| 32 | 1 | Byte |  | GoodsPriceDigits; The count of significant digits which a goods unit price may have; 0 = any. |
+| 32 | 1 | Byte |  | PriceDigits; The count of significant digits which every listing price (goods unit price and item price) may have; 0 = any. |
 
 ### AuctionHouseWindowState Enum
 

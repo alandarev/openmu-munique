@@ -69,4 +69,4 @@ Defines the result of an auction house request. Anything but Success and Partial
 | 13 | OwnListing | The listing is the own listing of the player. |
 | 14 | Partial | The request succeeded partially, something was kept back. |
 | 15 | InternalError | An internal error occurred. |
-| 16 | PriceNotOnStep | A goods unit price has more significant digits than announced. |
+| 16 | PriceNotOnStep | A listing price has more significant digits than announced. |

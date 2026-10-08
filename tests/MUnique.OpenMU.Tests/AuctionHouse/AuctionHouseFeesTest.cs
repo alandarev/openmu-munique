@@ -162,7 +162,7 @@ public class AuctionHouseFeesTest
 
     /// <summary>
     /// The default rules of the operator: no flat posting fee, 5 % posting fee, 10 % sale fee, 48 hours,
-    /// 3 significant digits of goods unit prices.
+    /// 2 significant digits of every listing price.
     /// </summary>
     [Test]
     public void DefaultRules()
@@ -177,13 +177,13 @@ public class AuctionHouseFeesTest
         Assert.That(rules.SaleFeeBasisPoints, Is.EqualTo(1_000));
         Assert.That(rules.RefundPostingFeeOnCancel, Is.False);
         Assert.That(rules.DurationHours, Is.EqualTo(new byte[] { 48 }));
-        Assert.That(rules.GoodsPriceSignificantDigits, Is.EqualTo(3));
+        Assert.That(rules.PriceSignificantDigits, Is.EqualTo(2));
         Assert.That(rules.MaximumRequestsPerSecond, Is.EqualTo(5));
-        Assert.That(AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None).GoodsPriceSignificantDigits, Is.EqualTo(3));
+        Assert.That(AuctionBrokerState.Create(rules, int.MaxValue, AuctionSellerSummary.None).PriceSignificantDigits, Is.EqualTo(2));
     }
 
     /// <summary>
-    /// A goods unit price is on a price step when it has at most the given count of significant digits.
+    /// A listing price is on a price step when it has at most the given count of significant digits.
     /// </summary>
     /// <param name="price">The unit price.</param>
     /// <param name="digits">The count of significant digits.</param>
@@ -208,6 +208,17 @@ public class AuctionHouseFeesTest
     [TestCase(4_294_967_295u, (byte)9, false)]
     [TestCase(4_290_000_000u, (byte)3, true)]
     [TestCase(4_294_967_295u, (byte)255, true)]
+    [TestCase(595_000u, (byte)2, false)]
+    [TestCase(590_000u, (byte)2, true)]
+    [TestCase(600_000u, (byte)2, true)]
+    [TestCase(12_500_000u, (byte)2, false)]
+    [TestCase(12_000_000u, (byte)2, true)]
+    [TestCase(29_932_843u, (byte)2, false)]
+    [TestCase(350u, (byte)2, true)]
+    [TestCase(2_300u, (byte)2, true)]
+    [TestCase(95u, (byte)2, true)]
+    [TestCase(7u, (byte)2, true)]
+    [TestCase(2_000_000_000u, (byte)2, true)]
     [TestCase(2_449_999u, (byte)0, true)]
     [TestCase(4_294_967_295u, (byte)0, true)]
     public void PriceStep(uint price, byte digits, bool expected)

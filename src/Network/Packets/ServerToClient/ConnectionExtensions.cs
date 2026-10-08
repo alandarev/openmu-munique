@@ -4122,12 +4122,12 @@ public static class ConnectionExtensions
     /// <param name="flags">Bit 0: the posting fee is refunded on cancel.</param>
     /// <param name="durationCount">The count of offered durations, 1 to 4.</param>
     /// <param name="durations">The offered listing durations in hours; unused ones are 0.</param>
-    /// <param name="goodsPriceDigits">The count of significant digits which a goods unit price may have; 0 = any.</param>
+    /// <param name="priceDigits">The count of significant digits which every listing price (goods unit price and item price) may have; 0 = any.</param>
     /// <remarks>
     /// Is sent by the server when: Open: instead of the NPC window response, when a player talks to an NPC with the auction-house window, and again after a RulesChanged answer. Closed: whenever the broker dialog ends (the close request of the client, warp, death, logout, another dialog).
     /// Causes reaction on client side: Open: the client shows the auction house window with these rules. Closed: the client closes the auction house window.
     /// </remarks>
-    public static async ValueTask SendAuctionHouseStateAsync(this IConnection? connection, AuctionHouseWindowState @state, byte @pageSize, byte @maxActiveListings, byte @activeListings, ushort @pendingCollection, uint @zenLimit, uint @maxPrice, uint @postingFeeFlat, ushort @postingFeeBasisPoints, ushort @saleFeeBasisPoints, byte @flags, byte @durationCount, Memory<byte> @durations, byte @goodsPriceDigits)
+    public static async ValueTask SendAuctionHouseStateAsync(this IConnection? connection, AuctionHouseWindowState @state, byte @pageSize, byte @maxActiveListings, byte @activeListings, ushort @pendingCollection, uint @zenLimit, uint @maxPrice, uint @postingFeeFlat, ushort @postingFeeBasisPoints, ushort @saleFeeBasisPoints, byte @flags, byte @durationCount, Memory<byte> @durations, byte @priceDigits)
     {
         if (connection is null)
         {
@@ -4151,7 +4151,7 @@ public static class ConnectionExtensions
             packet.Flags = @flags;
             packet.DurationCount = @durationCount;
             @durations.Span.CopyTo(packet.Durations);
-            packet.GoodsPriceDigits = @goodsPriceDigits;
+            packet.PriceDigits = @priceDigits;
 
             return packet.Header.Length;
         }

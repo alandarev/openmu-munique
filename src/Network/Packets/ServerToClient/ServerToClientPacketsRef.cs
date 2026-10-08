@@ -19332,9 +19332,9 @@ public readonly ref struct AuctionHouseStateRef
     }
 
     /// <summary>
-    /// Gets or sets the count of significant digits which a goods unit price may have; 0 = any.
+    /// Gets or sets the count of significant digits which every listing price (goods unit price and item price) may have; 0 = any.
     /// </summary>
-    public byte GoodsPriceDigits
+    public byte PriceDigits
     {
         get => this._data[32];
         set => this._data[32] = value;

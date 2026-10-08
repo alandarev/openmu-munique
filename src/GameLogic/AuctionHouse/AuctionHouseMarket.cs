@@ -389,14 +389,14 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             return Refused(AuctionHouseResult.NotEligible);
         }
 
+        if (!AuctionHouseFees.IsOnPriceStep(order.UnitPrice, rules.PriceSignificantDigits))
+        {
+            return Refused(AuctionHouseResult.PriceNotOnStep);
+        }
+
         List<Item> units;
         if (kind == AuctionHouseListingKind.Goods)
         {
-            if (!AuctionHouseFees.IsOnPriceStep(order.UnitPrice, rules.GoodsPriceSignificantDigits))
-            {
-                return Refused(AuctionHouseResult.PriceNotOnStep);
-            }
-
             units = GetGoodsUnits(player, rules, item);
             if (order.Quantity == 0 || units.Count < order.Quantity)
             {

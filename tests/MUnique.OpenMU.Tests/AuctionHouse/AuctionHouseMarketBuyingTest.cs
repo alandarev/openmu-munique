@@ -387,6 +387,25 @@ public class AuctionHouseMarketBuyingTest
         Assert.That((await this._helper.GetListingAsync(listingId).ConfigureAwait(false))!.State, Is.EqualTo(AuctionListingState.Active));
     }
 
+    /// <summary>
+    /// A goods listing created while three significant digits were allowed keeps its price of 595,000 Zen after the
+    /// rules allow only two, and stays buyable.
+    /// </summary>
+    [Test]
+    public async Task ListingFromBeforeStricterPriceDigitsStaysBuyableAsync()
+    {
+        this._helper.Rules.PriceSignificantDigits = 3;
+        var (_, listingId) = await this.CreateGoodsListingAsync("older", 2, 595_000).ConfigureAwait(false);
+        this._helper.Rules.PriceSignificantDigits = 2;
+
+        var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 2, 1_190_000)).ConfigureAwait(false);
+
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(outcome.Paid, Is.EqualTo(1_190_000));
+        Assert.That(this._buyer.Money, Is.EqualTo(998_810_000));
+        Assert.That((await this._helper.GetListingAsync(listingId).ConfigureAwait(false))!.UnitPrice, Is.EqualTo(595_000));
+    }
+
     private async ValueTask<(Player Seller, Guid ListingId, Item Item)> CreateItemListingAsync(uint price)
     {
         var seller = await this._helper.CreatePlayerAsync(this._gameContext, "seller", 100_000_000).ConfigureAwait(false);

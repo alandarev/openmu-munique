@@ -108,7 +108,7 @@ public class AuctionHousePacketFixtureTest
             SaleFeeBasisPoints = 500,
             Flags = 0x01,
             DurationCount = 4,
-            GoodsPriceDigits = 3,
+            PriceDigits = 3,
         };
         new byte[] { 12, 24, 48, 72 }.CopyTo(packet.Durations);
 

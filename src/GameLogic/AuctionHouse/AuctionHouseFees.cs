@@ -94,13 +94,13 @@ public static class AuctionHouseFees
         => TryGetPostingFee(state.PostingFeeFlat, state.PostingFeeBasisPoints, quantity, unitPrice, state.MaximumPrice, out postingFee);
 
     /// <summary>
-    /// Determines whether a goods unit price is on a price step: it has at most the given count of significant
-    /// digits, e.g. with 3 digits 2,440,000 and 999,000 are on a step, 2,449,999 and 1,001,000 are not.
+    /// Determines whether a listing price is on a price step: it has at most the given count of significant
+    /// digits, e.g. with 2 digits 590,000, 12,000,000, 2,300 and 95 are on a step, 595,000 and 12,500,000 are not.
     /// </summary>
     /// <remarks>
-    /// Only goods unit prices are restricted, item listings and totals are not. The auction house action can't
-    /// enforce it, because only the market knows whether an inventory slot holds goods; the market answers
-    /// <see cref="AuctionHouseResult.PriceNotOnStep"/> (see <see cref="IAuctionHouseMarket.CreateListingAsync"/>).
+    /// Every listing price is restricted, the unit price of goods and the price of an item listing; purchase totals
+    /// are not. The market answers <see cref="AuctionHouseResult.PriceNotOnStep"/> to a listing off a step
+    /// (see <see cref="IAuctionHouseMarket.CreateListingAsync"/>).
     /// </remarks>
     /// <param name="price">The unit price in Zen.</param>
     /// <param name="significantDigits">The count of significant digits which the price may have; 0 means no restriction.</param>

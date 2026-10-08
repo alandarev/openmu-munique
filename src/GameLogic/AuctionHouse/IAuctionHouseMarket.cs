@@ -78,9 +78,9 @@ public interface IAuctionHouseMarket
     /// <param name="order">The order, already checked against the current rules.</param>
     /// <returns>The outcome. After <see cref="AuctionHouseResult.RulesChanged"/>, the action sends a fresh broker state.</returns>
     /// <remarks>
-    /// The market decides whether the slot holds an item or goods, so it enforces the goods price steps:
-    /// a goods unit price which is not on a step of the current <see cref="AuctionHouseRules.GoodsPriceSignificantDigits"/>
-    /// (<see cref="AuctionHouseFees.IsOnPriceStep"/>) is answered with <see cref="AuctionHouseResult.PriceNotOnStep"/>, changing nothing.
+    /// The market enforces the price steps of every listing, goods and items alike: a price which is not on a step
+    /// of the current <see cref="AuctionHouseRules.PriceSignificantDigits"/> (<see cref="AuctionHouseFees.IsOnPriceStep"/>)
+    /// is answered with <see cref="AuctionHouseResult.PriceNotOnStep"/>, changing nothing; the market never rounds it.
     /// </remarks>
     ValueTask<AuctionCreateListingOutcome> CreateListingAsync(Player player, AuctionCreateListingOrder order);
 

@@ -67,10 +67,11 @@ public class AuctionHouseRules
     public List<byte> DurationHours { get; set; } = [48];
 
     /// <summary>
-    /// Gets or sets the count of significant digits which a goods unit price may have, so that sellers can't
-    /// undercut each other by a single Zen; 0 means no restriction. See <see cref="AuctionHouseFees.IsOnPriceStep"/>.
+    /// Gets or sets the count of significant digits which every listing price (the unit price of goods and the price
+    /// of an item listing) may have, so that sellers can't undercut each other by a single Zen and prices stay round;
+    /// 0 means no restriction. See <see cref="AuctionHouseFees.IsOnPriceStep"/>.
     /// </summary>
-    public byte GoodsPriceSignificantDigits { get; set; } = 3;
+    public byte PriceSignificantDigits { get; set; } = 2;
 
     /// <summary>
     /// Gets or sets the maximum count of auction house requests per second of a player;

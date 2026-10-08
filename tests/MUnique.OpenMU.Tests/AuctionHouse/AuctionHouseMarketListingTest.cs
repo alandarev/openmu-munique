@@ -173,17 +173,83 @@ public class AuctionHouseMarketListingTest
     }
 
     /// <summary>
-    /// Item listings are not restricted to price steps.
+    /// With the default rules, a goods unit price has at most two significant digits; a price off a step is
+    /// refused with <see cref="AuctionHouseResult.PriceNotOnStep"/>, never rounded, and changes nothing.
+    /// </summary>
+    /// <param name="unitPrice">The unit price.</param>
+    /// <param name="expected">The expected result.</param>
+    [TestCase(595_000u, AuctionHouseResult.PriceNotOnStep)]
+    [TestCase(590_000u, AuctionHouseResult.Success)]
+    public async Task GoodsListingPriceStepsWithDefaultRulesAsync(uint unitPrice, AuctionHouseResult expected)
+    {
+        Assert.That(this._helper.Rules.PriceSignificantDigits, Is.EqualTo(2));
+        await this._helper.AddItemsAsync(this._seller, this._helper.JewelOfBless, 2).ConfigureAwait(false);
+
+        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 2, unitPrice, 48, 0)).ConfigureAwait(false);
+
+        Assert.That(outcome.Result, Is.EqualTo(expected));
+        if (expected == AuctionHouseResult.Success)
+        {
+            Assert.That(this._market.Index.Get(outcome.ListingId)?.UnitPrice, Is.EqualTo(unitPrice));
+        }
+        else
+        {
+            Assert.That(this._seller.Money, Is.EqualTo(100_000_000));
+            Assert.That(this._seller.Inventory!.Items.Count(item => item.Definition == this._helper.JewelOfBless), Is.EqualTo(2));
+            Assert.That(this._market.Index.Count, Is.Zero);
+        }
+    }
+
+    /// <summary>
+    /// With the default rules, an item listing price off a step is refused with
+    /// <see cref="AuctionHouseResult.PriceNotOnStep"/>: no fee is charged and the item stays in the inventory.
     /// </summary>
     [Test]
-    public async Task ItemListingIsNotRestrictedToPriceStepsAsync()
+    public async Task ItemListingOffPriceStepIsRefusedAndChangesNothingAsync()
+    {
+        var item = await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot).ConfigureAwait(false);
+
+        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 12_500_000, 48, 0)).ConfigureAwait(false);
+
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.PriceNotOnStep));
+        Assert.That(this._seller.Money, Is.EqualTo(100_000_000));
+        Assert.That(this._seller.Inventory!.GetItem(Slot), Is.SameAs(item));
+        Assert.That(this._market.Index.Count, Is.Zero);
+    }
+
+    /// <summary>
+    /// With the default rules, an item listing price on a step is accepted as it is.
+    /// </summary>
+    [Test]
+    public async Task ItemListingOnPriceStepIsAcceptedAsync()
     {
         await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot).ConfigureAwait(false);
 
-        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 1_234_567, 48, 0)).ConfigureAwait(false);
+        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 12_000_000, 48, 0)).ConfigureAwait(false);
 
         Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
         Assert.That(this._market.Index.Get(outcome.ListingId)?.Item, Is.Not.Null);
+        Assert.That(this._market.Index.Get(outcome.ListingId)?.UnitPrice, Is.EqualTo(12_000_000));
+        Assert.That(this._seller.Inventory!.GetItem(Slot), Is.Null);
+    }
+
+    /// <summary>
+    /// 0 significant digits means no restriction, for goods and item listings alike.
+    /// </summary>
+    [Test]
+    public async Task ZeroPriceDigitsAllowAnyPriceAsync()
+    {
+        this._helper.Rules.PriceSignificantDigits = 0;
+        await this._helper.AddItemsAsync(this._seller, this._helper.JewelOfBless, 2).ConfigureAwait(false);
+        await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot + 2).ConfigureAwait(false);
+
+        var goods = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 2, 595_001, 48, 0)).ConfigureAwait(false);
+        var item = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot + 2, 1, 12_345_678, 48, 0)).ConfigureAwait(false);
+
+        Assert.That(goods.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(item.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(this._market.Index.Get(goods.ListingId)?.UnitPrice, Is.EqualTo(595_001));
+        Assert.That(this._market.Index.Get(item.ListingId)?.UnitPrice, Is.EqualTo(12_345_678));
     }
 
     /// <summary>

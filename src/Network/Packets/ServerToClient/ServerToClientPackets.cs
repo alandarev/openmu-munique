@@ -20184,9 +20184,9 @@ public readonly struct AuctionHouseState
     }
 
     /// <summary>
-    /// Gets or sets the count of significant digits which a goods unit price may have; 0 = any.
+    /// Gets or sets the count of significant digits which every listing price (goods unit price and item price) may have; 0 = any.
     /// </summary>
-    public byte GoodsPriceDigits
+    public byte PriceDigits
     {
         get => this._data.Span[32];
         set => this._data.Span[32] = value;
@@ -40894,7 +40894,7 @@ public readonly struct MonsterSkillAnimation
             InternalError = 15,
 
         /// <summary>
-        /// A goods unit price has more significant digits than announced.
+        /// A listing price has more significant digits than announced.
         /// </summary>
             PriceNotOnStep = 16,
     }
