@@ -16,7 +16,7 @@ using MUnique.OpenMU.PlugIns;
 /// The default implementation of the <see cref="IShowAuctionCollectionPlugIn"/> which is forwarding everything to the game client with specific data packets.
 /// </summary>
 /// <remarks>
-/// Each entry has its own length, because of its item data; only individual items have one. The game client has to support the <see cref="AuctionCollection"/> packet of the auction house.
+/// Each entry has its own length, because of its item data; only individual items and the proceeds of an item listing (the display copy of the sold item) have one. The game client has to support the <see cref="AuctionCollection"/> packet of the auction house.
 /// </remarks>
 [PlugIn]
 [Display(Name = nameof(PlugInResources.ShowAuctionCollectionPlugIn_Name), Description = nameof(PlugInResources.ShowAuctionCollectionPlugIn_Description), ResourceType = typeof(PlugInResources))]

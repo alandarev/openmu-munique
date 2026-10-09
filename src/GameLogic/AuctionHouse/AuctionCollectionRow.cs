@@ -17,7 +17,7 @@ using MUnique.OpenMU.DataModel.Entities;
 /// <param name="Gross">The gross in Zen.</param>
 /// <param name="Fee">The fee in Zen.</param>
 /// <param name="Net">The Zen still to collect.</param>
-/// <param name="Item">The individual item; <see langword="null"/> otherwise.</param>
+/// <param name="Item">The individual item, or for the proceeds of an item listing the display copy of the sold item; <see langword="null"/> otherwise.</param>
 public sealed record AuctionCollectionRow(
     Guid EntryId,
     AuctionHouseCollectionEntryKind Kind,

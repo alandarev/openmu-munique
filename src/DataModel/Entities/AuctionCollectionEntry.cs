@@ -83,4 +83,14 @@ public class AuctionCollectionEntry
     /// </summary>
     [MemberOfAggregate]
     public virtual ItemStorage? Escrow { get; set; }
+
+    /// <summary>
+    /// Gets or sets the storage which holds a copy of the sold item of the proceeds of an item listing, as it was
+    /// listed, so that the collection can show the item as it looks.
+    /// </summary>
+    /// <remarks>
+    /// For display only: the copy is never delivered, and it is deleted with the entry.
+    /// </remarks>
+    [MemberOfAggregate]
+    public virtual ItemStorage? SoldItem { get; set; }
 }

@@ -1,4 +1,4 @@
-// <copyright file="AuctionHouseMarketPostgreSqlTest.cs" company="MUnique">
+﻿// <copyright file="AuctionHouseMarketPostgreSqlTest.cs" company="MUnique">
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // </copyright>
 
@@ -26,6 +26,14 @@ using EfModel = MUnique.OpenMU.Persistence.EntityFramework.Model;
 public class AuctionHouseMarketPostgreSqlTest
 {
     private const byte Slot = AuctionHouseMarketTestHelper.FirstInventorySlot;
+
+    /// <summary>
+    /// Counts the trigger functions which delete the auction house escrow of a character and also the display copies.
+    /// </summary>
+    private const string TriggerFunctionMentionsSoldItemSql = """
+        SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'data' AND p.proname = 'DeleteAuctionHouseEscrowOfCharacter' AND p.prosrc LIKE '%SoldItemId%'
+        """;
 
     /// <summary>
     /// The longest time a test waits for a barrier or a task before it fails.
@@ -121,23 +129,7 @@ public class AuctionHouseMarketPostgreSqlTest
     [Test]
     public async Task ItemKeepsItsStateThroughEscrowAndPurchaseAsync()
     {
-        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) =>
-        {
-            var item = AddItem(context, inventory, this._kris, Slot, 11);
-            item.SocketCount = 2;
-            item.HasSkill = true;
-            item.Durability = 17;
-            var excellent = context.CreateNew<ItemOptionLink>();
-            excellent.ItemOption = this._excellentOption;
-            excellent.Level = 1;
-            item.ItemOptions.Add(excellent);
-            var socket = context.CreateNew<ItemOptionLink>();
-            socket.ItemOption = this._socketOption;
-            socket.Index = 1;
-            item.ItemOptions.Add(socket);
-            item.ItemSetGroups.Add(this._ancientSetItem);
-            return ValueTask.CompletedTask;
-        }).ConfigureAwait(false);
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, this.AddExcellentAncientKrisAsync).ConfigureAwait(false);
         var buyer = await this.CreatePlayerAsync("buyer", 100_000_000).ConfigureAwait(false);
 
         var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
@@ -615,7 +607,8 @@ public class AuctionHouseMarketPostgreSqlTest
         await using var data = this._database.CreateDataContext();
         var listing = await data.Set<EfModel.AuctionListing>().SingleAsync().ConfigureAwait(false);
         Assert.That(listing.State, Is.EqualTo(committed ? AuctionListingState.SoldOut : AuctionListingState.Active));
-        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+        Assert.That(await CountItemsOutsideDisplayCopiesAsync(data).ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+        Assert.That(await data.Set<EfModel.AuctionCollectionEntry>().CountAsync(entry => entry.SoldItemId != null).ConfigureAwait(false), Is.EqualTo(committed ? 1 : 0), "only a sale leaves a display copy");
     }
 
     /// <summary>
@@ -685,6 +678,201 @@ public class AuctionHouseMarketPostgreSqlTest
         Assert.That(reader.GetInt64(1), Is.Zero, "no orphan storage remains");
     }
 
+    /// <summary>
+    /// The proceeds entry of a sold item keeps a persistent copy of the item as it was listed: a reloaded collection
+    /// shows it with its options and set, and claiming the proceeds pays the Zen only, delivers no item, and deletes
+    /// the entry with the copy's storage and item.
+    /// </summary>
+    [Test]
+    public async Task ProceedsShowDisplayCopyAndClaimPaysZenOnlyAsync()
+    {
+        var (seller, _) = await this.SellExcellentAncientKrisAsync().ConfigureAwait(false);
+        var soldItemId = await this.GetSoldItemIdAsync().ConfigureAwait(false);
+        await using (var data = this._database.CreateDataContext())
+        {
+            Assert.That(await data.Set<EfModel.Item>().CountAsync(item => item.ItemStorageId == soldItemId).ConfigureAwait(false), Is.EqualTo(1));
+        }
+
+        var page = await this._market.GetCollectionAsync(seller, new AuctionCollectionQuery(0)).ConfigureAwait(false);
+        var row = page.Entries.Single();
+        Assert.That(row.Kind, Is.EqualTo(AuctionHouseCollectionEntryKind.Proceeds));
+        Assert.That(row.Net, Is.EqualTo(9_000_000));
+        AssertItemState(row.Item);
+        Assert.That((row.Item as EfModel.Item)?.ItemStorageId, Is.EqualTo(soldItemId), "the row shows the persisted copy");
+
+        var claimed = await this._market.ClaimAsync(seller, new AuctionClaimOrder(null)).ConfigureAwait(false);
+
+        Assert.That(claimed.Result, Is.EqualTo(AuctionHouseResult.Success));
+        Assert.That(claimed.ZenCollected, Is.EqualTo(9_000_000));
+        Assert.That(claimed.ItemsMoved, Is.Zero);
+        Assert.That(seller.Inventory!.Items, Is.Empty);
+        await using var check = this._database.CreateDataContext();
+        var sellerInventoryId = seller.SelectedCharacter!.Inventory!.GetId();
+        Assert.That(await check.Set<EfModel.Item>().CountAsync(item => item.ItemStorageId == sellerInventoryId).ConfigureAwait(false), Is.Zero, "no item is delivered");
+        Assert.That(await this.GetDatabaseMoneyAsync(seller).ConfigureAwait(false), Is.EqualTo(99_500_000 + 9_000_000));
+        Assert.That(await check.Set<EfModel.AuctionCollectionEntry>().CountAsync().ConfigureAwait(false), Is.Zero);
+        Assert.That(await check.Set<EfModel.ItemStorage>().CountAsync(storage => storage.Id == soldItemId).ConfigureAwait(false), Is.Zero);
+        Assert.That(await check.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "only the buyer's item remains");
+        Assert.That(await this.QueryLongAsync("""SELECT count(*) FROM data."ItemOptionLink" """).ConfigureAwait(false), Is.EqualTo(2), "only the options of the buyer's item remain");
+        Assert.That(await this.QueryLongAsync("""SELECT count(*) FROM data."ItemItemOfItemSet" """).ConfigureAwait(false), Is.EqualTo(1), "only the set of the buyer's item remains");
+    }
+
+    /// <summary>
+    /// Deleting the seller's character deletes its proceeds entry with the display copy's storage and item.
+    /// </summary>
+    [Test]
+    public async Task DeletingSellerDeletesDisplayCopyAsync()
+    {
+        var (seller, _) = await this.SellExcellentAncientKrisAsync().ConfigureAwait(false);
+        var soldItemId = await this.GetSoldItemIdAsync().ConfigureAwait(false);
+
+        using (var playerContext = this._database.ContextProvider.CreateNewPlayerContext(this._configuration))
+        {
+            var account = await playerContext.GetAccountByLoginNameAsync("seller").ConfigureAwait(false);
+            var character = account!.Characters.Single();
+            account.Characters.Remove(character);
+            Assert.That(await playerContext.DeleteAsync(character).ConfigureAwait(false), Is.True);
+            Assert.That(await playerContext.SaveChangesAsync().ConfigureAwait(false), Is.True);
+        }
+
+        await using var data = this._database.CreateDataContext();
+        Assert.That(await data.Set<EfModel.Character>().CountAsync(c => c.Id == seller.SelectedCharacter!.GetId()).ConfigureAwait(false), Is.Zero);
+        Assert.That(await data.Set<EfModel.AuctionCollectionEntry>().CountAsync().ConfigureAwait(false), Is.Zero);
+        Assert.That(await data.Set<EfModel.ItemStorage>().CountAsync(storage => storage.Id == soldItemId).ConfigureAwait(false), Is.Zero);
+        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "only the buyer's item remains");
+        Assert.That(await this.QueryLongAsync("""SELECT count(*) FROM data."ItemOptionLink" """).ConfigureAwait(false), Is.EqualTo(2), "only the options of the buyer's item remain");
+    }
+
+    /// <summary>
+    /// The proceeds of goods have no display copy, and their collection row has no item.
+    /// </summary>
+    [Test]
+    public async Task GoodsProceedsHaveNoDisplayCopyAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._jewelOfBless, 2)).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 100_000_000).ConfigureAwait(false);
+        await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 2, 1_000_000, 48, 0)).ConfigureAwait(false);
+        Assert.That((await this._market.BuyGoodsAsync(buyer, new AuctionBuyGoodsOrder(this.JewelOfBlessType, 0, 1, 1_000_000)).ConfigureAwait(false)).Result, Is.EqualTo(AuctionHouseResult.Success));
+
+        await using (var data = this._database.CreateDataContext())
+        {
+            var proceeds = await data.Set<EfModel.AuctionCollectionEntry>().SingleAsync(entry => entry.Kind == AuctionHouseCollectionEntryKind.Proceeds).ConfigureAwait(false);
+            Assert.That(proceeds.SoldItemId, Is.Null);
+        }
+
+        var row = (await this._market.GetCollectionAsync(seller, new AuctionCollectionQuery(0)).ConfigureAwait(false)).Entries.Single();
+        Assert.That(row.Kind, Is.EqualTo(AuctionHouseCollectionEntryKind.Proceeds));
+        Assert.That(row.Item, Is.Null);
+    }
+
+    /// <summary>
+    /// Proceeds of an item listing without a display copy, as created before the copy existed, still list with their
+    /// type and level only, and can be claimed.
+    /// </summary>
+    [Test]
+    public async Task ProceedsWithoutDisplayCopyStillListAsync()
+    {
+        var (seller, _) = await this.SellExcellentAncientKrisAsync().ConfigureAwait(false);
+        var soldItemId = await this.GetSoldItemIdAsync().ConfigureAwait(false);
+        await this.ExecuteSqlAsync($"""
+            UPDATE data."AuctionCollectionEntry" SET "SoldItemId" = NULL;
+            DELETE FROM data."ItemStorage" WHERE "Id" = '{soldItemId}';
+            """).ConfigureAwait(false);
+
+        var row = (await this._market.GetCollectionAsync(seller, new AuctionCollectionQuery(0)).ConfigureAwait(false)).Entries.Single();
+
+        Assert.That(row.Kind, Is.EqualTo(AuctionHouseCollectionEntryKind.Proceeds));
+        Assert.That(row.Item, Is.Null);
+        Assert.That(row.ItemType, Is.EqualTo(AuctionHouseItemTypes.GetItemType(this._kris)));
+        Assert.That(row.Level, Is.EqualTo(11));
+        Assert.That(row.Net, Is.EqualTo(9_000_000));
+        var claimed = await this._market.ClaimAsync(seller, new AuctionClaimOrder(null)).ConfigureAwait(false);
+        Assert.That(claimed.ZenCollected, Is.EqualTo(9_000_000));
+        await using var data = this._database.CreateDataContext();
+        Assert.That(await data.Set<EfModel.AuctionCollectionEntry>().CountAsync().ConfigureAwait(false), Is.Zero);
+    }
+
+    /// <summary>
+    /// The Down of the migration <c>AddAuctionCollectionSoldItem</c> deletes the display copies, keeps the proceeds
+    /// entries and restores the previous trigger function; its Up replaces the function again.
+    /// </summary>
+    [Test]
+    public async Task MigrationDownDeletesDisplayCopiesAsync()
+    {
+        await this.SellExcellentAncientKrisAsync().ConfigureAwait(false);
+        await using (var data = this._database.CreateDataContext())
+        {
+            await data.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261007173506_AddAuctionHouse").ConfigureAwait(false);
+        }
+
+        Assert.That(await this.QueryLongAsync("""SELECT count(*) FROM data."Item" """).ConfigureAwait(false), Is.EqualTo(1), "only the buyer's item remains");
+        Assert.That(await this.QueryLongAsync("""SELECT count(*) FROM data."AuctionCollectionEntry" """).ConfigureAwait(false), Is.EqualTo(1), "the proceeds stay");
+        Assert.That(await this.QueryLongAsync("""SELECT count(*) FROM information_schema.columns WHERE table_name = 'AuctionCollectionEntry' AND column_name = 'SoldItemId'""").ConfigureAwait(false), Is.Zero);
+        Assert.That(
+            await this.QueryLongAsync("""
+                SELECT count(*) FROM data."ItemStorage" s
+                WHERE NOT EXISTS (SELECT 1 FROM data."Character" c WHERE c."InventoryId" = s."Id")
+                  AND NOT EXISTS (SELECT 1 FROM data."Account" a WHERE a."VaultId" = s."Id")
+                  AND NOT EXISTS (SELECT 1 FROM data."AuctionListing" l WHERE l."EscrowId" = s."Id")
+                  AND NOT EXISTS (SELECT 1 FROM data."AuctionCollectionEntry" e WHERE e."EscrowId" = s."Id")
+                """).ConfigureAwait(false),
+            Is.Zero,
+            "no orphan storage remains");
+        Assert.That(await this.QueryLongAsync(TriggerFunctionMentionsSoldItemSql).ConfigureAwait(false), Is.Zero, "the previous function is restored");
+
+        await using (var data = this._database.CreateDataContext())
+        {
+            await data.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync().ConfigureAwait(false);
+        }
+
+        Assert.That(await this.QueryLongAsync(TriggerFunctionMentionsSoldItemSql).ConfigureAwait(false), Is.EqualTo(1));
+    }
+
+    private async ValueTask<(Player Seller, Player Buyer)> SellExcellentAncientKrisAsync()
+    {
+        var seller = await this.CreatePlayerAsync("seller", 100_000_000, this.AddExcellentAncientKrisAsync).ConfigureAwait(false);
+        var buyer = await this.CreatePlayerAsync("buyer", 100_000_000).ConfigureAwait(false);
+        var created = await this._market.CreateListingAsync(seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
+        Assert.That(created.Result, Is.EqualTo(AuctionHouseResult.Success));
+        var bought = await this._market.BuyListingAsync(buyer, new AuctionBuyListingOrder(created.ListingId, 10_000_000)).ConfigureAwait(false);
+        Assert.That(bought.Result, Is.EqualTo(AuctionHouseResult.Success));
+        return (seller, buyer);
+    }
+
+    private async ValueTask<Guid> GetSoldItemIdAsync()
+    {
+        await using var data = this._database.CreateDataContext();
+        var proceeds = await data.Set<EfModel.AuctionCollectionEntry>().SingleAsync(entry => entry.Kind == AuctionHouseCollectionEntryKind.Proceeds).ConfigureAwait(false);
+        Assert.That(proceeds.SoldItemId, Is.Not.Null, "the proceeds of an item listing keep a display copy");
+        return proceeds.SoldItemId!.Value;
+    }
+
+    private async ValueTask<long> QueryLongAsync(string sql)
+    {
+        await using var connection = new Npgsql.NpgsqlConnection(this._database.ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new Npgsql.NpgsqlCommand(sql, connection);
+        return Convert.ToInt64(await command.ExecuteScalarAsync().ConfigureAwait(false));
+    }
+
+    private ValueTask AddExcellentAncientKrisAsync(IContext context, ItemStorage inventory)
+    {
+        var item = AddItem(context, inventory, this._kris, Slot, 11);
+        item.SocketCount = 2;
+        item.HasSkill = true;
+        item.Durability = 17;
+        var excellent = context.CreateNew<ItemOptionLink>();
+        excellent.ItemOption = this._excellentOption;
+        excellent.Level = 1;
+        item.ItemOptions.Add(excellent);
+        var socket = context.CreateNew<ItemOptionLink>();
+        socket.ItemOption = this._socketOption;
+        socket.Index = 1;
+        item.ItemOptions.Add(socket);
+        item.ItemSetGroups.Add(this._ancientSetItem);
+        return ValueTask.CompletedTask;
+    }
+
     private async ValueTask<(Player Buyer, Guid ListingId, AuctionHouseMarket ExpiryMarket)> PrepareRaceAsync()
     {
         var seller = await this.CreatePlayerAsync("seller", 100_000_000, (context, inventory) => AddItemsAsync(context, inventory, this._kris, 1)).ConfigureAwait(false);
@@ -726,8 +914,15 @@ public class AuctionHouseMarketPostgreSqlTest
             }
         }
 
-        Assert.That(await data.Set<EfModel.Item>().CountAsync().ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+        Assert.That(await CountItemsOutsideDisplayCopiesAsync(data).ConfigureAwait(false), Is.EqualTo(1), "the item exists exactly once");
+        Assert.That(await data.Set<EfModel.AuctionCollectionEntry>().CountAsync(entry => entry.SoldItemId != null).ConfigureAwait(false), Is.EqualTo(sold ? 1 : 0), "only a sale leaves a display copy");
     }
+
+    /// <summary>
+    /// Counts the items which aren't display copies of sold items.
+    /// </summary>
+    private static Task<int> CountItemsOutsideDisplayCopiesAsync(Persistence.EntityFramework.EntityDataContext data)
+        => data.Set<EfModel.Item>().CountAsync(item => !data.Set<EfModel.AuctionCollectionEntry>().Any(entry => entry.SoldItemId == item.ItemStorageId));
 
     private static void AssertItemState(Item? item)
     {

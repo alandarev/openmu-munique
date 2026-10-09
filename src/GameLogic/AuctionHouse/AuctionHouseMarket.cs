@@ -945,6 +945,14 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     {
         var context = buyer.PersistenceContext;
         var item = CopyOfListedItem(listing);
+        var listingId = listing.GetId();
+        if (!proceedsEntries.TryGetValue(listingId, out var proceeds))
+        {
+            proceeds = CreateEntry(context, transaction, AuctionHouseCollectionEntryKind.Proceeds, listing.SellerCharacterId, listing, now, false);
+            AddSoldItemCopy(context, proceeds, listing);
+            proceedsEntries[listingId] = proceeds;
+        }
+
         MoveItems(transaction, listing.Escrow!, purchase.Escrow!, units);
         var remaining = listing.RemainingQuantity;
         var state = listing.State;
@@ -962,14 +970,6 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
 
         var gross = (uint)units * (uint)listing.UnitPrice;
         var fee = AuctionHouseFees.GetSaleFee(gross, rules.SaleFeeBasisPoints);
-        var listingId = listing.GetId();
-
-        if (!proceedsEntries.TryGetValue(listingId, out var proceeds))
-        {
-            proceeds = CreateEntry(context, transaction, AuctionHouseCollectionEntryKind.Proceeds, listing.SellerCharacterId, listing, now, false);
-            proceedsEntries[listingId] = proceeds;
-        }
-
         var (oldQuantity, oldGross, oldFee, oldMoney, oldUpdatedAt) = (proceeds.Quantity, proceeds.Gross, proceeds.Fee, proceeds.UncollectedMoney, proceeds.UpdatedAt);
         proceeds.Quantity += units;
         proceeds.Gross += gross;
@@ -1014,6 +1014,28 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             (uint)units,
             gross - fee,
             item);
+    }
+
+    /// <summary>
+    /// Puts a persistent copy of the item of an item listing into its new proceeds entry, so that the collection can
+    /// name the sold item as it looks after the item itself went to the buyer. The copy is for display only: claiming
+    /// the proceeds never delivers it, and it is deleted with the entry. Goods get no copy.
+    /// </summary>
+    /// <param name="context">The context of the operation.</param>
+    /// <param name="proceeds">The new proceeds entry, which the transaction detaches with its copy when completed.</param>
+    /// <param name="listing">The locked listing, with its escrow still holding the item.</param>
+    private static void AddSoldItemCopy(IPlayerContext context, AuctionCollectionEntry proceeds, AuctionListing listing)
+    {
+        if (listing.Kind != AuctionHouseListingKind.Item || listing.Escrow?.Items.FirstOrDefault() is not { } item)
+        {
+            return;
+        }
+
+        var soldItem = context.CreateNew<ItemStorage>();
+        var copy = context.CreateNew<Item>();
+        copy.AssignValues(item);
+        soldItem.Items.Add(copy);
+        proceeds.SoldItem = soldItem;
     }
 
     /// <summary>

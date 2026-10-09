@@ -153,14 +153,25 @@ internal sealed class AuctionCollectionClaim
     }
 
     /// <summary>
-    /// Deletes the entries which were claimed completely; the last change of the operation before its commit.
+    /// Deletes the entries which were claimed completely, with the display copies of sold items; the last change of
+    /// the operation before its commit.
     /// </summary>
+    /// <remarks>
+    /// Deleting an entry deletes its storages, but a loaded item of a deleted storage would only lose its storage, so
+    /// the items of the display copy are deleted explicitly. The copy is never delivered.
+    /// </remarks>
     /// <returns>The task.</returns>
     public async ValueTask CompleteAsync()
     {
+        var context = this._player.PersistenceContext;
         foreach (var entry in this._emptiedEntries)
         {
-            await this._player.PersistenceContext.DeleteAsync(entry).ConfigureAwait(false);
+            foreach (var soldItem in entry.SoldItem?.Items.ToList() ?? [])
+            {
+                await context.DeleteAsync(soldItem).ConfigureAwait(false);
+            }
+
+            await context.DeleteAsync(entry).ConfigureAwait(false);
         }
     }
 

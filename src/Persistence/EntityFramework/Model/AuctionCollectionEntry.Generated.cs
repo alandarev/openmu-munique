@@ -50,6 +50,32 @@ internal partial class AuctionCollectionEntry : MUnique.OpenMU.DataModel.Entitie
         }
     }
 
+    /// <summary>
+    /// Gets or sets the identifier of <see cref="SoldItem"/>.
+    /// </summary>
+    public Guid? SoldItemId { get; set; }
+
+    /// <summary>
+    /// Gets the raw object of <see cref="SoldItem" />.
+    /// </summary>
+    [ForeignKey(nameof(SoldItemId))]
+    public ItemStorage RawSoldItem
+    {
+        get => base.SoldItem as ItemStorage;
+        set => base.SoldItem = value;
+    }
+
+    /// <inheritdoc/>
+    [NotMapped]
+    public override MUnique.OpenMU.DataModel.Entities.ItemStorage SoldItem
+    {
+        get => base.SoldItem;set
+        {
+            base.SoldItem = value;
+            this.SoldItemId = this.RawSoldItem?.Id;
+        }
+    }
+
 
     /// <inheritdoc/>
     public override bool Equals(object obj)

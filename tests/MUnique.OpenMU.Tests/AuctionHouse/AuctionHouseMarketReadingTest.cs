@@ -318,7 +318,7 @@ public class AuctionHouseMarketReadingTest
 
     /// <summary>
     /// The collection pages the entries of the requester from the database, oldest first, with item data for single
-    /// items only; the seller summary counts active listings and waiting entries.
+    /// items and the display copies of sold items; the seller summary counts active listings and waiting entries.
     /// </summary>
     [Test]
     public async Task CollectionAndSummaryAsync()
@@ -342,7 +342,7 @@ public class AuctionHouseMarketReadingTest
         Assert.That(buyerPast.Entries, Is.Empty);
         Assert.That(seller.Entries.Select(entry => entry.Kind), Is.All.EqualTo(AuctionHouseCollectionEntryKind.Proceeds));
         Assert.That(seller.Entries.Select(entry => entry.Net), Is.EquivalentTo(new uint[] { 5_400, 7_200 }));
-        Assert.That(seller.Entries.All(entry => entry.Item is null), Is.True);
+        Assert.That(seller.Entries.Select(entry => entry.Item?.Definition?.Name.ToString()), Is.EquivalentTo(new[] { "Helm", "Ring" }), "the proceeds show the display copies of the sold items");
         Assert.That(summary, Is.EqualTo(new AuctionSellerSummary(8, 2)));
     }
 

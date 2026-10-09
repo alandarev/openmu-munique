@@ -345,6 +345,9 @@ namespace MUnique.OpenMU.Persistence.EntityFramework.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SoldItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<long>("UncollectedMoney")
                         .HasColumnType("bigint");
 
@@ -359,6 +362,9 @@ namespace MUnique.OpenMU.Persistence.EntityFramework.Migrations
                     b.HasIndex("ListingId");
 
                     b.HasIndex("OwnerCharacterId");
+
+                    b.HasIndex("SoldItemId")
+                        .IsUnique();
 
                     b.ToTable("AuctionCollectionEntry", "data");
                 });
@@ -4233,7 +4239,14 @@ namespace MUnique.OpenMU.Persistence.EntityFramework.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MUnique.OpenMU.Persistence.EntityFramework.Model.ItemStorage", "RawSoldItem")
+                        .WithOne()
+                        .HasForeignKey("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionCollectionEntry", "SoldItemId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.Navigation("RawEscrow");
+
+                    b.Navigation("RawSoldItem");
                 });
 
             modelBuilder.Entity("MUnique.OpenMU.Persistence.EntityFramework.Model.AuctionListing", b =>

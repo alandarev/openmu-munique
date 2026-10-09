@@ -185,10 +185,19 @@ internal sealed class AuctionMarketReader
                 ClampToUInt(entry.Gross),
                 ClampToUInt(entry.Fee),
                 ClampToUInt(entry.UncollectedMoney),
-                IsIndividualItem(entry, rules) ? entry.Escrow!.Items.Single() : null))
+                GetRowItem(entry, rules)))
             .ToList();
         return new AuctionCollectionPage(AuctionHouseResult.Success, query.Page, (ushort)Math.Min(total, ushort.MaxValue), rows);
     }
+
+    /// <summary>
+    /// Gets the item whose data the collection shows for the entry: the individual item it holds, or for the proceeds
+    /// of an item listing the display copy of the sold item; entries created before the copy existed have none.
+    /// </summary>
+    private static Item? GetRowItem(AuctionCollectionEntry entry, AuctionHouseRules rules)
+        => entry.Kind == AuctionHouseCollectionEntryKind.Proceeds
+            ? entry.SoldItem?.Items.FirstOrDefault()
+            : IsIndividualItem(entry, rules) ? entry.Escrow!.Items.Single() : null;
 
     /// <summary>
     /// Determines whether the entry holds an individual item, whose data the collection shows: one item which isn't

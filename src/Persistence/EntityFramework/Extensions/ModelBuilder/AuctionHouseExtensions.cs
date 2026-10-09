@@ -16,7 +16,8 @@ using MUnique.OpenMU.Persistence.EntityFramework.Model;
 /// character's graph doesn't include them. Their escrow storage is the principal of the generated one-to-one
 /// relationship, so deleting a character can't reach it by a foreign key; the migration <c>AddAuctionHouse</c>
 /// therefore adds a trigger which deletes the escrow storages (and by that the listings, entries and items) of a
-/// character before the character is deleted.
+/// character before the character is deleted. The storage of an entry's display copy of a sold item is a principal
+/// in the same way; the migration <c>AddAuctionCollectionSoldItem</c> makes the trigger delete it, too.
 /// </remarks>
 internal static class AuctionHouseExtensions
 {

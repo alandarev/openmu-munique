@@ -40,6 +40,24 @@ public partial class AuctionCollectionEntry : MUnique.OpenMU.DataModel.Entities.
         set => base.Escrow = value;
     }
 
+    /// <summary>
+    /// Gets the raw object of <see cref="SoldItem" />.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("soldItem")]
+    public ItemStorage RawSoldItem
+    {
+        get => base.SoldItem as ItemStorage;
+        set => base.SoldItem = value;
+    }
+
+    /// <inheritdoc/>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public override MUnique.OpenMU.DataModel.Entities.ItemStorage SoldItem
+    {
+        get => base.SoldItem;
+        set => base.SoldItem = value;
+    }
+
 
     /// <inheritdoc/>
     public override bool Equals(object obj)
