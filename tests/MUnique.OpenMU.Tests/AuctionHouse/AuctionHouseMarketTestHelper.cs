@@ -27,13 +27,21 @@ internal sealed class AuctionHouseMarketTestHelper
     public const byte FirstInventorySlot = 12;
 
     /// <summary>
+    /// Creates the rules of the market tests: the operator defaults, but with a posting fee of 5 %, which the expected
+    /// amounts of the tests are based on. The defaults themselves are covered by
+    /// <see cref="AuctionHouseFeesTest.DefaultRules"/> and <see cref="AuctionHouseMarketBuyingTest.DefaultFeesAsync"/>.
+    /// </summary>
+    /// <returns>The rules of the market tests.</returns>
+    public static AuctionHouseRules CreateRules() => new() { PostingFeeBasisPoints = 500 };
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AuctionHouseMarketTestHelper"/> class with one database and game
     /// configuration.
     /// </summary>
-    /// <param name="rules">The rules; the operator defaults if <see langword="null"/>.</param>
+    /// <param name="rules">The rules; <see cref="CreateRules"/> if <see langword="null"/>.</param>
     public AuctionHouseMarketTestHelper(AuctionHouseRules? rules = null)
     {
-        this.Rules = rules ?? AuctionHouseRules.Default;
+        this.Rules = rules ?? CreateRules();
         this.ContextProvider = new InMemoryPersistenceContextProvider();
         var context = this.ContextProvider.CreateNewContext();
         var configuration = context.CreateNew<GameConfiguration>();

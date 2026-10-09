@@ -161,7 +161,7 @@ public class AuctionHouseFeesTest
     }
 
     /// <summary>
-    /// The default rules of the operator: no flat posting fee, 5 % posting fee, 10 % sale fee, 48 hours,
+    /// The default rules of the operator: no flat posting fee, 2 % posting fee, 10 % sale fee, 48 hours,
     /// price step precision 2 for every listing price.
     /// </summary>
     [Test]
@@ -173,7 +173,7 @@ public class AuctionHouseFeesTest
         Assert.That(rules.MaximumActiveListings, Is.EqualTo(20));
         Assert.That(rules.MaximumPrice, Is.EqualTo(2_000_000_000));
         Assert.That(rules.PostingFeeFlat, Is.EqualTo(0));
-        Assert.That(rules.PostingFeeBasisPoints, Is.EqualTo(500));
+        Assert.That(rules.PostingFeeBasisPoints, Is.EqualTo(200));
         Assert.That(rules.SaleFeeBasisPoints, Is.EqualTo(1_000));
         Assert.That(rules.RefundPostingFeeOnCancel, Is.False);
         Assert.That(rules.DurationHours, Is.EqualTo(new byte[] { 48 }));

@@ -124,7 +124,7 @@ public class AuctionHouseRulesTest
         var roundTripped = configuration.GetConfiguration<AuctionHouseRules>(null);
 
         Assert.That(roundTripped!.Goods.Select(goods => (goods.Group, goods.Number)), Is.EqualTo(AuctionHouseRules.Default.Goods.Select(goods => (goods.Group, goods.Number))));
-        Assert.That(roundTripped.PostingFeeBasisPoints, Is.EqualTo(500));
+        Assert.That(roundTripped.PostingFeeBasisPoints, Is.EqualTo(200));
         Assert.That(roundTripped.SaleFeeBasisPoints, Is.EqualTo(1_000));
         Assert.That(roundTripped.DurationHours, Is.EqualTo(new byte[] { 48 }));
 

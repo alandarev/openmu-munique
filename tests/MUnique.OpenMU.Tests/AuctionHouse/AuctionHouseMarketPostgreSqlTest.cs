@@ -98,7 +98,7 @@ public class AuctionHouseMarketPostgreSqlTest
         mapInitializer.PlugInManager = gameContext.PlugInManager;
         mapInitializer.PathFinderPool = gameContext.PathFinderPool;
         this._market = new AuctionHouseMarket(this._database.ContextProvider, this._configuration, new NullLogger<AuctionHouseMarket>());
-        gameContext.FeaturePlugIns.AddPlugIn(new AuctionHouseFeaturePlugIn { Configuration = AuctionHouseRules.Default, Market = this._market }, true);
+        gameContext.FeaturePlugIns.AddPlugIn(new AuctionHouseFeaturePlugIn { Configuration = AuctionHouseMarketTestHelper.CreateRules(), Market = this._market }, true);
         this._gameContext = gameContext;
     }
 

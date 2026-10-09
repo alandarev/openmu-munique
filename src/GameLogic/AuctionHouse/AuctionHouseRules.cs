@@ -49,7 +49,7 @@ public class AuctionHouseRules
     /// <summary>
     /// Gets or sets the part of the posting fee in basis points (1/10000) of the listing total.
     /// </summary>
-    public ushort PostingFeeBasisPoints { get; set; } = 500;
+    public ushort PostingFeeBasisPoints { get; set; } = 200;
 
     /// <summary>
     /// Gets or sets the sale fee in basis points (1/10000) of the gross of each sale.

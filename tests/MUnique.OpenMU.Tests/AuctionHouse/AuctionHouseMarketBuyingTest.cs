@@ -286,18 +286,20 @@ public class AuctionHouseMarketBuyingTest
 
     /// <summary>
     /// The spec's default fees: a seller lists 10 Jewels of Bless at 3,000,000 Zen each, all are sold; the seller
-    /// paid 1,500,000 Zen posting fee and receives 27,000,000 Zen proceeds.
+    /// paid 600,000 Zen posting fee (2 %) and receives 27,000,000 Zen proceeds (10 % sale fee).
     /// </summary>
     [Test]
     public async Task DefaultFeesAsync()
     {
+        this._helper.Rules.PostingFeeBasisPoints = AuctionHouseRules.Default.PostingFeeBasisPoints;
+        this._helper.Rules.SaleFeeBasisPoints = AuctionHouseRules.Default.SaleFeeBasisPoints;
         var (seller, listingId) = await this.CreateGoodsListingAsync("seller", 10, 3_000_000).ConfigureAwait(false);
         var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 4, 12_000_000)).ConfigureAwait(false);
         var secondOutcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 6, 18_000_000)).ConfigureAwait(false);
 
         Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
         Assert.That(secondOutcome.Result, Is.EqualTo(AuctionHouseResult.Success));
-        Assert.That(seller.Money, Is.EqualTo(100_000_000 - 1_500_000));
+        Assert.That(seller.Money, Is.EqualTo(100_000_000 - 600_000));
         var proceeds = (await this._helper.GetEntriesAsync(seller.SelectedCharacter!).ConfigureAwait(false)).Single();
         Assert.That(proceeds.Quantity, Is.EqualTo(10));
         Assert.That(proceeds.Gross, Is.EqualTo(30_000_000));

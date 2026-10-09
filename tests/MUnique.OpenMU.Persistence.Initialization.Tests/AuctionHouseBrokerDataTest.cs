@@ -154,7 +154,7 @@ internal class AuctionHouseBrokerDataTest
         var rules = gameConfiguration.PlugInConfigurations.Single(c => c.TypeId == typeof(AuctionHouseFeaturePlugIn).GUID).GetConfiguration<AuctionHouseRules>(referenceHandler);
         Assert.That(rules, Is.Not.Null);
         Assert.That(rules!.SaleFeeBasisPoints, Is.EqualTo(AuctionHouseRules.Default.SaleFeeBasisPoints));
-        Assert.That(rules.PostingFeeBasisPoints, Is.EqualTo(500));
+        Assert.That(rules.PostingFeeBasisPoints, Is.EqualTo(200));
         Assert.That(rules.DurationHours, Is.EqualTo(new byte[] { 48 }));
         Assert.That(rules.Goods, Has.Count.EqualTo(20));
     }
