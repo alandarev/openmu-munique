@@ -77,6 +77,59 @@ public class AuctionHouseMarketDeliveryTest
     }
 
     /// <summary>
+    /// The notice of a sold item carries a copy of the item, so that the client can name it as it looks (e.g. excellent);
+    /// the copy is not the item which went to the buyer. Goods notices carry none.
+    /// </summary>
+    [Test]
+    public async Task SoldItemNoticeCarriesACopyOfTheItemAsync()
+    {
+        var listed = await this._helper.AddItemAsync(this._seller, this._helper.Kris, Slot, 7).ConfigureAwait(false);
+        var outcome = await this._market.CreateListingAsync(this._seller, new AuctionCreateListingOrder(Slot, 1, 10_000_000, 48, 0)).ConfigureAwait(false);
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
+
+        await this.BuyAsync(outcome.ListingId).ConfigureAwait(false);
+
+        this._seller.View<IShowAuctionNoticePlugIn>().Verify(
+            v => v.ShowAuctionNoticeAsync(It.Is<AuctionHouseNotice>(n => n.Item != null
+                && n.Item != listed
+                && n.Item.Definition == this._helper.Kris
+                && n.Item.Level == 7
+                && n.Item.ItemOptions.Count == listed.ItemOptions.Count)),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// The notice of sold goods carries no item.
+    /// </summary>
+    [Test]
+    public async Task SoldGoodsNoticeCarriesNoItemAsync()
+    {
+        _ = await this.ListGoodsAsync(2).ConfigureAwait(false);
+        var outcome = await this._market.BuyGoodsAsync(this._buyer, new AuctionBuyGoodsOrder(this._helper.JewelOfBlessType, 0, 2, 2_000_000)).ConfigureAwait(false);
+        Assert.That(outcome.Result, Is.EqualTo(AuctionHouseResult.Success));
+        await this._market.WaitForPendingDeliveriesAsync().ConfigureAwait(false);
+
+        this._seller.View<IShowAuctionNoticePlugIn>().Verify(v => v.ShowAuctionNoticeAsync(It.Is<AuctionHouseNotice>(n => n.Item == null)), Times.Once);
+    }
+
+    /// <summary>
+    /// The notice of an expired item listing carries a copy of the item.
+    /// </summary>
+    [Test]
+    public async Task ExpiredItemNoticeCarriesACopyOfTheItemAsync()
+    {
+        await this.ListItemAsync(10_000_000).ConfigureAwait(false);
+        this._time.Advance(TimeSpan.FromHours(48));
+
+        await this._market.ExpireDueListingsAsync(true).ConfigureAwait(false);
+        await this._market.WaitForPendingDeliveriesAsync().ConfigureAwait(false);
+
+        this._seller.View<IShowAuctionNoticePlugIn>().Verify(
+            v => v.ShowAuctionNoticeAsync(It.Is<AuctionHouseNotice>(n => n.Kind == AuctionHouseNoticeKind.Expired && n.Item != null && n.Item.Definition == this._helper.Kris)),
+            Times.Once);
+    }
+
+    /// <summary>
     /// An offline seller gets nothing now; the proceeds wait in the collection.
     /// </summary>
     [Test]

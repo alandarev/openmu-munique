@@ -154,7 +154,8 @@ internal sealed class AuctionSellerDelivery
                     order.Level,
                     order.Quantity,
                     order.Net,
-                    (ushort)Math.Min(pending.Count, ushort.MaxValue));
+                    (ushort)Math.Min(pending.Count, ushort.MaxValue),
+                    order.Item);
                 await seller.InvokeViewPlugInAsync<IShowAuctionNoticePlugIn>(p => p.ShowAuctionNoticeAsync(notice)).ConfigureAwait(false);
             }).ConfigureAwait(false);
         }

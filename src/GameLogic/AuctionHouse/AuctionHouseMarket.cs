@@ -886,6 +886,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                 });
 
                 var entry = CreateEntry(context, transaction, AuctionHouseCollectionEntryKind.Expired, listing.SellerCharacterId, listing, now, true);
+                var item = CopyOfListedItem(listing);
                 MoveItems(transaction, listing.Escrow!, entry.Escrow!, listing.Escrow!.Items.Count);
                 entry.Quantity = remaining;
                 deliveries.Add(new AuctionSellerDeliveryOrder(
@@ -897,7 +898,8 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
                     AuctionHouseItemTypes.GetItemType(listing.ItemGroup, listing.ItemNumber),
                     listing.ItemLevel,
                     (uint)remaining,
-                    0));
+                    0,
+                    item));
             }
 
             return true;
@@ -942,6 +944,7 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
     private static AuctionSellerDeliveryOrder SettleSale(Player buyer, IPersistenceTransaction transaction, AuctionHouseRules rules, AuctionListing listing, int units, AuctionCollectionEntry purchase, Dictionary<Guid, AuctionCollectionEntry> proceedsEntries, DateTime now)
     {
         var context = buyer.PersistenceContext;
+        var item = CopyOfListedItem(listing);
         MoveItems(transaction, listing.Escrow!, purchase.Escrow!, units);
         var remaining = listing.RemainingQuantity;
         var state = listing.State;
@@ -1009,7 +1012,26 @@ public sealed class AuctionHouseMarket : IAuctionHouseMarket
             AuctionHouseItemTypes.GetItemType(listing.ItemGroup, listing.ItemNumber),
             listing.ItemLevel,
             (uint)units,
-            gross - fee);
+            gross - fee,
+            item);
+    }
+
+    /// <summary>
+    /// Copies the item of an item listing, so that the seller's notice can name it as it looks (e.g. excellent) after the
+    /// item itself went to the buyer; the copy belongs to no persistence context.
+    /// </summary>
+    /// <param name="listing">The locked listing, with its escrow.</param>
+    /// <returns>The copy; <see langword="null"/> for goods.</returns>
+    private static Item? CopyOfListedItem(AuctionListing listing)
+    {
+        if (listing.Kind != AuctionHouseListingKind.Item || listing.Escrow?.Items.FirstOrDefault() is not { } item)
+        {
+            return null;
+        }
+
+        var copy = new TemporaryItem();
+        copy.AssignValues(item);
+        return copy;
     }
 
     /// <summary>

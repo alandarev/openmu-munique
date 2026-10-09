@@ -13,7 +13,7 @@ The client notifies the player.
 | Index | Length | Data Type | Value | Description |
 |-------|--------|-----------|-------|-------------|
 | 0 | 1 |   Byte   | 0xC1  | [Packet type](PacketTypes.md) |
-| 1 | 1 |    Byte   |   18   | Packet header - length of the packet |
+| 1 | 1 |    Byte   |      | Packet header - length of the packet |
 | 2 | 1 |    Byte   | 0x7B  | Packet header - packet type identifier |
 | 3 | 1 |    Byte   | 0x5B  | Packet header - sub packet type identifier |
 | 4 | 1 | AuctionNoticeKind |  | Kind; The kind of the notice. |
@@ -22,6 +22,7 @@ The client notifies the player.
 | 8 | 4 | IntegerLittleEndian |  | Quantity; The quantity; 0 for deliveries waiting. |
 | 12 | 4 | IntegerLittleEndian |  | Net; The net in Zen; 0 for deliveries waiting. |
 | 16 | 2 | ShortLittleEndian |  | PendingCollection; The count of entries in the collection of the player. |
+| 18 |  | Binary |  | ItemData; The sold or expired item of an item listing, serialized like the item data of the collection rows, so that the client can name it as it looks (e.g. excellent). Empty for goods and for deliveries waiting; its length follows from the packet length. |
 
 ### AuctionNoticeKind Enum
 

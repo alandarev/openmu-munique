@@ -8210,7 +8210,6 @@
       <Code>7B</Code>
       <SubCode>5B</SubCode>
       <Name>AuctionNotice</Name>
-      <Length>18</Length>
       <Direction>ServerToClient</Direction>
       <SentWhen>Sold or expired: while the seller is online, wherever the seller is. Deliveries waiting: when a character with collection entries enters the game.</SentWhen>
       <CausedReaction>The client notifies the player.</CausedReaction>
@@ -8251,6 +8250,12 @@
           <Type>ShortLittleEndian</Type>
           <Name>PendingCollection</Name>
           <Description>The count of entries in the collection of the player.</Description>
+        </Field>
+        <Field>
+          <Index>18</Index>
+          <Type>Binary</Type>
+          <Name>ItemData</Name>
+          <Description>The sold or expired item of an item listing, serialized like the item data of the collection rows, so that the client can name it as it looks (e.g. excellent). Empty for goods and for deliveries waiting; its length follows from the packet length.</Description>
         </Field>
       </Fields>
     </Packet>

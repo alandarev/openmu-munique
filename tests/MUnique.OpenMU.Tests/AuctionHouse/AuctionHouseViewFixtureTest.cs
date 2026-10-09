@@ -25,10 +25,12 @@ public class AuctionHouseViewFixtureTest
     private static readonly byte[] BladeItemData = [0x00, 0x05, 0x09, 0x2A, 0x0F, 0x03, 0x09];
     private static readonly byte[] AncientArmorItemData = [0x80, 0x09, 0x07, 0x2D, 0x13, 0x02, 0x51];
     private static readonly byte[] SocketSwordItemData = [0x00, 0x1A, 0x0B, 0x40, 0x85, 0x01, 0x03, 0x01, 0xFE, 0xFE];
+    private static readonly byte[] ExcellentDragonArmorItemData = [0x80, 0x01, 0x09, 0x61, 0x08, 0x3F];
 
     private readonly Item _blade = new Persistence.BasicModel.Item { Id = Guid.NewGuid() };
     private readonly Item _ancientArmor = new Persistence.BasicModel.Item { Id = Guid.NewGuid() };
     private readonly Item _socketSword = new Persistence.BasicModel.Item { Id = Guid.NewGuid() };
+    private readonly Item _excellentDragonArmor = new Persistence.BasicModel.Item { Id = Guid.NewGuid() };
     private ItemSerializerStub _itemSerializer = null!;
 
     /// <summary>
@@ -42,6 +44,7 @@ public class AuctionHouseViewFixtureTest
             { this._blade, BladeItemData },
             { this._ancientArmor, AncientArmorItemData },
             { this._socketSword, SocketSwordItemData },
+            { this._excellentDragonArmor, ExcellentDragonArmorItemData },
         });
     }
 
@@ -249,7 +252,18 @@ public class AuctionHouseViewFixtureTest
     public void NoticeSoldMatchesFixture()
     {
         var notice = new AuctionHouseNotice(AuctionHouseNoticeKind.Sold, JewelOfBless, 0, 8, 7_600_000, 2);
-        AssertWritten("auction-notice-sold.bin", target => ShowAuctionNoticePlugIn.Write(target, notice));
+        AssertWritten("auction-notice-sold.bin", target => ShowAuctionNoticePlugIn.Write(target, notice, this._itemSerializer));
+    }
+
+    /// <summary>
+    /// The sold notice of an item listing carries the sold item's data after the fixed part, so that the client can name
+    /// it as it looks ("Excellent Dragon Armor +9").
+    /// </summary>
+    [Test]
+    public void NoticeSoldItemMatchesFixture()
+    {
+        var notice = new AuctionHouseNotice(AuctionHouseNoticeKind.SoldToInventory, (8 * 512) + 1, 9, 1, 24_120_000, 0, this._excellentDragonArmor);
+        AssertWritten("auction-notice-sold-item.bin", target => ShowAuctionNoticePlugIn.Write(target, notice, this._itemSerializer));
     }
 
     /// <summary>
@@ -259,7 +273,7 @@ public class AuctionHouseViewFixtureTest
     public void NoticeDeliveriesWaitingMatchesFixture()
     {
         var notice = new AuctionHouseNotice(AuctionHouseNoticeKind.DeliveriesWaiting, 0, 0, 0, 0, 3);
-        AssertWritten("auction-notice-deliveries-waiting.bin", target => ShowAuctionNoticePlugIn.Write(target, notice));
+        AssertWritten("auction-notice-deliveries-waiting.bin", target => ShowAuctionNoticePlugIn.Write(target, notice, this._itemSerializer));
     }
 
     /// <summary>
@@ -275,7 +289,7 @@ public class AuctionHouseViewFixtureTest
         var expected = AuctionHousePacketFixtureTest.ReadFixture("auction-notice-sold.bin");
         expected[4] = expectedKind;
 
-        AssertWritten(expected, target => ShowAuctionNoticePlugIn.Write(target, notice));
+        AssertWritten(expected, target => ShowAuctionNoticePlugIn.Write(target, notice, this._itemSerializer));
     }
 
     /// <summary>

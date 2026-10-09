@@ -21977,7 +21977,7 @@ public readonly struct AuctionNotice
             var header = this.Header;
             header.Type = HeaderType;
             header.Code = Code;
-            header.Length = (byte)Math.Min(data.Length, Length);
+            header.Length = (byte)data.Length;
             header.SubCode = SubCode;
         }
     }
@@ -21997,11 +21997,6 @@ public readonly struct AuctionNotice
     /// The <see cref="Code" /> is used as a grouping key.
     /// </summary>
     public static byte SubCode => 0x5B;
-
-    /// <summary>
-    /// Gets the initial length of this data packet. When the size is dynamic, this value may be bigger than actually needed.
-    /// </summary>
-    public static int Length => 18;
 
     /// <summary>
     /// Gets the header of this packet.
@@ -22063,6 +22058,14 @@ public readonly struct AuctionNotice
     }
 
     /// <summary>
+    /// Gets or sets the sold or expired item of an item listing, serialized like the item data of the collection rows, so that the client can name it as it looks (e.g. excellent). Empty for goods and for deliveries waiting; its length follows from the packet length.
+    /// </summary>
+    public Span<byte> ItemData
+    {
+        get => this._data.Slice(18).Span;
+    }
+
+    /// <summary>
     /// Performs an implicit conversion from a Memory of bytes to a <see cref="AuctionNotice"/>.
     /// </summary>
     /// <param name="packet">The packet as span.</param>
@@ -22075,6 +22078,13 @@ public readonly struct AuctionNotice
     /// <param name="packet">The packet as struct.</param>
     /// <returns>The packet as byte span.</returns>
     public static implicit operator Memory<byte>(AuctionNotice packet) => packet._data; 
+
+    /// <summary>
+    /// Calculates the size of the packet for the specified length of <see cref="ItemData"/>.
+    /// </summary>
+    /// <param name="itemDataLength">The length in bytes of <see cref="ItemData"/> on which the required size depends.</param>
+        
+    public static int GetRequiredSize(int itemDataLength) => itemDataLength + 18;
 }
 
 

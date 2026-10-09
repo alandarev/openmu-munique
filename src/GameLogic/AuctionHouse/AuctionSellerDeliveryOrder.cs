@@ -16,6 +16,7 @@ namespace MUnique.OpenMU.GameLogic.AuctionHouse;
 /// <param name="Level">The item level.</param>
 /// <param name="Quantity">The sold or returned quantity.</param>
 /// <param name="Net">The proceeds in Zen after the sale fee; 0 for returned units.</param>
+/// <param name="Item">A copy of the sold or returned item of an item listing, taken when it left the escrow; <see langword="null"/> for goods.</param>
 internal sealed record AuctionSellerDeliveryOrder(
     Guid CharacterId,
     string CharacterName,
@@ -25,4 +26,5 @@ internal sealed record AuctionSellerDeliveryOrder(
     ushort ItemType,
     byte Level,
     uint Quantity,
-    uint Net);
+    uint Net,
+    Item? Item = null);

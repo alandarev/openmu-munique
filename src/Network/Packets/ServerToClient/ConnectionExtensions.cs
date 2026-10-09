@@ -4361,11 +4361,12 @@ public static class ConnectionExtensions
     /// <param name="quantity">The quantity; 0 for deliveries waiting.</param>
     /// <param name="net">The net in Zen; 0 for deliveries waiting.</param>
     /// <param name="pendingCollection">The count of entries in the collection of the player.</param>
+    /// <param name="itemData">The sold or expired item of an item listing, serialized like the item data of the collection rows, so that the client can name it as it looks (e.g. excellent). Empty for goods and for deliveries waiting; its length follows from the packet length.</param>
     /// <remarks>
     /// Is sent by the server when: Sold or expired: while the seller is online, wherever the seller is. Deliveries waiting: when a character with collection entries enters the game.
     /// Causes reaction on client side: The client notifies the player.
     /// </remarks>
-    public static async ValueTask SendAuctionNoticeAsync(this IConnection? connection, AuctionNoticeKind @kind, ushort @type, byte @level, uint @quantity, uint @net, ushort @pendingCollection)
+    public static async ValueTask SendAuctionNoticeAsync(this IConnection? connection, AuctionNoticeKind @kind, ushort @type, byte @level, uint @quantity, uint @net, ushort @pendingCollection, Memory<byte> @itemData)
     {
         if (connection is null)
         {
@@ -4374,7 +4375,7 @@ public static class ConnectionExtensions
 
         int WritePacket()
         {
-            var length = AuctionNoticeRef.Length;
+            var length = AuctionNoticeRef.GetRequiredSize(itemData.Length);
             var packet = new AuctionNoticeRef(connection.Output.GetSpan(length)[..length]);
             packet.Kind = @kind;
             packet.Type = @type;
@@ -4382,6 +4383,7 @@ public static class ConnectionExtensions
             packet.Quantity = @quantity;
             packet.Net = @net;
             packet.PendingCollection = @pendingCollection;
+            @itemData.Span.CopyTo(packet.ItemData);
 
             return packet.Header.Length;
         }

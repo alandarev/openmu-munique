@@ -40,7 +40,8 @@ public class ShowAuctionNoticePlugIn : IShowAuctionNoticePlugIn
             return;
         }
 
-        int Write() => ShowAuctionNoticePlugIn.Write(connection.Output.GetSpan(AuctionNoticeRef.Length), notice);
+        var itemSerializer = this._player.ItemSerializer;
+        int Write() => ShowAuctionNoticePlugIn.Write(connection.Output.GetSpan(AuctionNoticeRef.GetRequiredSize(itemSerializer.NeededSpace)), notice, itemSerializer);
 
         await connection.SendAsync(Write).ConfigureAwait(false);
     }
@@ -48,13 +49,22 @@ public class ShowAuctionNoticePlugIn : IShowAuctionNoticePlugIn
     /// <summary>
     /// Writes the <see cref="AuctionNotice"/> packet.
     /// </summary>
-    /// <param name="target">The target, of <see cref="AuctionNoticeRef.Length"/>.</param>
+    /// <param name="target">The target, of at least <see cref="AuctionNoticeRef.GetRequiredSize"/> for the needed space of the item serializer.</param>
     /// <param name="notice">The notice.</param>
+    /// <param name="itemSerializer">The item serializer of the connection.</param>
     /// <returns>The written length.</returns>
-    internal static int Write(Span<byte> target, AuctionHouseNotice notice)
+    internal static int Write(Span<byte> target, AuctionHouseNotice notice, IItemSerializer itemSerializer)
     {
-        target = target[..AuctionNoticeRef.Length];
-        target.Clear();
+        var itemDataLength = 0;
+        if (notice.Item is { } item)
+        {
+            var itemTarget = target[AuctionNoticeRef.GetRequiredSize(0)..];
+            itemTarget[..itemSerializer.NeededSpace].Clear();
+            itemDataLength = itemSerializer.SerializeItem(itemTarget, item);
+        }
+
+        target = target[..AuctionNoticeRef.GetRequiredSize(itemDataLength)];
+        target[..AuctionNoticeRef.GetRequiredSize(0)].Clear();
         _ = new AuctionNoticeRef(target)
         {
             Kind = (AuctionNoticeKind)notice.Kind,

@@ -64,6 +64,7 @@ public class AuctionHousePacketFixtureTest
         "auction-house-state-open.bin",
         "auction-notice-deliveries-waiting.bin",
         "auction-notice-sold.bin",
+        "auction-notice-sold-item.bin",
         "auction-own-listings-empty.bin",
         "auction-own-listings-request.bin",
         "auction-own-listings.bin",
@@ -821,7 +822,7 @@ public class AuctionHousePacketFixtureTest
     [Test]
     public void AuctionNoticeSoldMatchesFixture()
     {
-        var bytes = new byte[AuctionNoticeRef.Length];
+        var bytes = new byte[AuctionNoticeRef.GetRequiredSize(0)];
         _ = new AuctionNoticeRef(bytes)
         {
             Kind = AuctionNoticeKind.Sold,
@@ -841,10 +842,33 @@ public class AuctionHousePacketFixtureTest
     [Test]
     public void AuctionNoticeDeliveriesWaitingMatchesFixture()
     {
-        var bytes = new byte[AuctionNoticeRef.Length];
+        var bytes = new byte[AuctionNoticeRef.GetRequiredSize(0)];
         _ = new AuctionNoticeRef(bytes) { Kind = AuctionNoticeKind.DeliveriesWaiting, PendingCollection = 3 };
 
         Assert.That(bytes, Is.EqualTo(ReadFixture("auction-notice-deliveries-waiting.bin")));
+    }
+
+    /// <summary>
+    /// The sold <see cref="AuctionNotice"/> of an item listing, with the item data after the fixed part, is serialized to
+    /// the fixture bytes.
+    /// </summary>
+    [Test]
+    public void AuctionNoticeSoldItemMatchesFixture()
+    {
+        byte[] itemData = [0x80, 0x01, 0x09, 0x61, 0x08, 0x3F];
+        var bytes = new byte[AuctionNoticeRef.GetRequiredSize(itemData.Length)];
+        var notice = new AuctionNoticeRef(bytes)
+        {
+            Kind = AuctionNoticeKind.SoldToInventory,
+            Type = (8 * 512) + 1,
+            Level = 9,
+            Quantity = 1,
+            Net = 24_120_000,
+            PendingCollection = 0,
+        };
+        itemData.CopyTo(notice.ItemData);
+
+        Assert.That(bytes, Is.EqualTo(ReadFixture("auction-notice-sold-item.bin")));
     }
 
     /// <summary>

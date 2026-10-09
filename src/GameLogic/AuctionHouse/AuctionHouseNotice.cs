@@ -13,10 +13,13 @@ namespace MUnique.OpenMU.GameLogic.AuctionHouse;
 /// <param name="Quantity">The quantity; 0 for <see cref="AuctionHouseNoticeKind.DeliveriesWaiting"/>.</param>
 /// <param name="Net">The net in Zen; 0 for <see cref="AuctionHouseNoticeKind.DeliveriesWaiting"/>.</param>
 /// <param name="PendingCollection">The count of entries in the collection of the player.</param>
+/// <param name="Item">A copy of the sold or expired item of an item listing, so that the client can name it as it looks
+/// (e.g. excellent); <see langword="null"/> for goods and for <see cref="AuctionHouseNoticeKind.DeliveriesWaiting"/>.</param>
 public sealed record AuctionHouseNotice(
     AuctionHouseNoticeKind Kind,
     ushort ItemType,
     byte Level,
     uint Quantity,
     uint Net,
-    ushort PendingCollection);
+    ushort PendingCollection,
+    Item? Item = null);
