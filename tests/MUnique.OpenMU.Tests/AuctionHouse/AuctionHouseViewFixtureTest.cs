@@ -236,6 +236,19 @@ public class AuctionHouseViewFixtureTest
     }
 
     /// <summary>
+    /// The proceeds of an item listing carry the data of the display copy of the sold item, so that the client can name
+    /// it as it looks ("Excellent Dragon Armor +9"); the collection is written as the fixture.
+    /// </summary>
+    [Test]
+    public void CollectionProceedsItemMatchesFixture()
+    {
+        var page = new AuctionCollectionPage(AuctionHouseResult.Success, 0, 1, [
+            new AuctionCollectionRow(Id(0x70), AuctionHouseCollectionEntryKind.Proceeds, (8 * 512) + 1, 9, 1, 26_800_000, 2_680_000, 24_120_000, this._excellentDragonArmor),
+        ]);
+        AssertWritten("auction-collection-proceeds-item.bin", target => ShowAuctionCollectionPlugIn.Write(target, 17, page, this._itemSerializer));
+    }
+
+    /// <summary>
     /// The partial claim result is written as the fixture.
     /// </summary>
     [Test]

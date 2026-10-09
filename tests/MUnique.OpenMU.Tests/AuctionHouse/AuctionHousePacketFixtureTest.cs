@@ -49,6 +49,7 @@ public class AuctionHousePacketFixtureTest
         "auction-claim-request.bin",
         "auction-claim-result.bin",
         "auction-collection-empty.bin",
+        "auction-collection-proceeds-item.bin",
         "auction-collection-request.bin",
         "auction-collection.bin",
         "auction-create-listing-request.bin",
@@ -756,6 +757,42 @@ public class AuctionHousePacketFixtureTest
         Id(0x60).CopyTo(expired.EntryId);
 
         Assert.That(bytes, Is.EqualTo(ReadFixture("auction-collection.bin")));
+    }
+
+    /// <summary>
+    /// The <see cref="AuctionCollection"/> with the proceeds of an item listing, which carry the item data of the sold
+    /// item, is serialized to the fixture bytes.
+    /// </summary>
+    [Test]
+    public void AuctionCollectionProceedsItemMatchesFixture()
+    {
+        byte[] itemData = [0x80, 0x01, 0x09, 0x61, 0x08, 0x3F];
+        var entrySize = AuctionCollectionRef.AuctionCollectionEntryRef.GetRequiredSize(itemData.Length);
+        var bytes = new byte[13 + entrySize];
+        _ = new AuctionCollectionRef(bytes)
+        {
+            RequestId = 17,
+            Result = AuctionResult.Success,
+            Page = 0,
+            TotalCount = 1,
+            Count = 1,
+        };
+
+        var proceeds = new AuctionCollectionRef.AuctionCollectionEntryRef(bytes.AsSpan(13, entrySize))
+        {
+            Kind = AuctionCollectionEntryKind.Proceeds,
+            Type = (8 * 512) + 1,
+            Level = 9,
+            Quantity = 1,
+            Gross = 26_800_000,
+            Fee = 2_680_000,
+            Net = 24_120_000,
+            ItemDataLength = (byte)itemData.Length,
+        };
+        Id(0x70).CopyTo(proceeds.EntryId);
+        itemData.CopyTo(proceeds.ItemData);
+
+        Assert.That(bytes, Is.EqualTo(ReadFixture("auction-collection-proceeds-item.bin")));
     }
 
     /// <summary>
