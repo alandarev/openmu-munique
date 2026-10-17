@@ -15,7 +15,8 @@ on:
 jobs:
   build:
     name: Build the documentation site
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-openmu-munique"]' || '"ubuntu-latest"') }}
     defaults:
       run:
         working-directory: docs-website

@@ -15,7 +15,8 @@ on:
 jobs:
   check:
     name: Check if the version is published
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-openmu-munique"]' || '"ubuntu-latest"') }}
     outputs:
       version: ${{ steps.check.outputs.version }}
       publish: ${{ steps.check.outputs.publish }}
@@ -40,7 +41,8 @@ jobs:
     name: ${{ matrix.image }}
     needs: check
     if: needs.check.outputs.publish == 'true'
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-openmu-munique"]' || '"ubuntu-latest"') }}
 
     strategy:
       fail-fast: false
