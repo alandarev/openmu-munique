@@ -7,6 +7,7 @@ namespace MUnique.OpenMU.Web.AdminPanel;
 using System.IO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -86,6 +87,8 @@ public static class WebApplicationExtensions
         services.AddSingleton<IDataSource<Account>, AccountDataSource>();
         services.AddSingleton<ConfigurationSearchIndexCache>();
         services.AddSingleton<SetupService>();
+        services.AddSingleton(new LoggingConfigurationService(Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json")));
+        services.AddSingleton(provider => new DiscordConfigurationService(Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json"), provider.GetRequiredService<IConfiguration>()));
         services.AddScoped<DataUpdateService>();
         services.AddScoped<ConfigurationCaptionService>();
         services.AddScoped<AccountService>();
@@ -100,6 +103,8 @@ public static class WebApplicationExtensions
         services.AddScoped<IDataService<ChatCommandViewItem>>(serviceProvider => serviceProvider.GetService<ChatCommandController>()!);
         services.AddScoped<AdminUserManagementService>();
         services.AddScoped<CastleSiegeManagementService>();
+        services.AddSingleton<OnlinePlayerHistory>();
+        services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<OnlinePlayerHistory>());
         services.AddScoped<IChangeNotificationService, ChangeNotificationService>();
 
         // The analyzers are only created when the network analyzer page is actually used,

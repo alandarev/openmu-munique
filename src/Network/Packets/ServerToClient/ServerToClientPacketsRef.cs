@@ -19375,6 +19375,139 @@ public readonly ref struct ServerMessageRef
 
 
 /// <summary>
+/// Is sent by the server when: A game master or the server sends a notice which should scroll across the top of the screen.
+/// Causes reaction on client side: The client scrolls the message through the band at the top of the screen, as often as the loop count says.
+/// </summary>
+public readonly ref struct SlideNoticeRef
+{
+    private readonly Span<byte> _data;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SlideNoticeRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    public SlideNoticeRef(Span<byte> data)
+        : this(data, true)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SlideNoticeRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    /// <param name="initialize">If set to <c>true</c>, the header data is automatically initialized and written to the underlying span.</param>
+    private SlideNoticeRef(Span<byte> data, bool initialize)
+    {
+        this._data = data;
+        if (initialize)
+        {
+            var header = this.Header;
+            header.Type = HeaderType;
+            header.Code = Code;
+            header.Length = (byte)data.Length;
+            this.Type = 14;
+            this.LoopCount = 1;
+        }
+    }
+
+    /// <summary>
+    /// Gets the header type of this data packet.
+    /// </summary>
+    public static byte HeaderType => 0xC1;
+
+    /// <summary>
+    /// Gets the operation code of this data packet.
+    /// </summary>
+    public static byte Code => 0x0D;
+
+    /// <summary>
+    /// Gets the header of this packet.
+    /// </summary>
+    public C1HeaderRef Header => new (this._data);
+
+    /// <summary>
+    /// Gets or sets the band and queueing of the message. 10 to 12 use the help band, 13 to 15 the notice band. Within a band, the first value drops the message when it could not be shown within a minute, the second one queues it, and the third one puts it in front of the queue, ignoring the loop delay.
+    /// </summary>
+    public byte Type
+    {
+        get => this._data[3];
+        set => this._data[3] = value;
+    }
+
+    /// <summary>
+    /// Gets or sets how often the message is shown. The client ignores messages with more than 30 loops.
+    /// </summary>
+    public byte LoopCount
+    {
+        get => this._data[4];
+        set => this._data[4] = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the delay between the loops, in seconds.
+    /// </summary>
+    public ushort LoopDelay
+    {
+        get => ReadUInt16LittleEndian(this._data[6..]);
+        set => WriteUInt16LittleEndian(this._data[6..], value);
+    }
+
+    /// <summary>
+    /// Gets or sets the color of the text, as 0xAABBGGRR.
+    /// </summary>
+    public uint Color
+    {
+        get => ReadUInt32LittleEndian(this._data[8..]);
+        set => WriteUInt32LittleEndian(this._data[8..], value);
+    }
+
+    /// <summary>
+    /// Gets or sets the scroll speed, multiplied by 10. 0 means the default speed.
+    /// </summary>
+    public byte Speed
+    {
+        get => this._data[12];
+        set => this._data[12] = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the message.
+    /// </summary>
+    public string Message
+    {
+        get => this._data.ExtractString(13, this._data.Length - 13, System.Text.Encoding.UTF8);
+        set => this._data.Slice(13).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Performs an implicit conversion from a Span of bytes to a <see cref="SlideNotice"/>.
+    /// </summary>
+    /// <param name="packet">The packet as span.</param>
+    /// <returns>The packet as struct.</returns>
+    public static implicit operator SlideNoticeRef(Span<byte> packet) => new (packet, false);
+
+    /// <summary>
+    /// Performs an implicit conversion from <see cref="SlideNotice"/> to a Span of bytes.
+    /// </summary>
+    /// <param name="packet">The packet as struct.</param>
+    /// <returns>The packet as byte span.</returns>
+    public static implicit operator Span<byte>(SlideNoticeRef packet) => packet._data; 
+
+    /// <summary>
+    /// Calculates the size of the packet for the specified field content.
+    /// </summary>
+    /// <param name="content">The content of the variable 'Message' field from which the size will be calculated.</param>
+    public static int GetRequiredSize(string content) => System.Text.Encoding.UTF8.GetByteCount(content) + 1 + 13;
+
+    /// <summary>
+    /// Calculates the size of the packet for the specified field content.
+    /// </summary>
+    /// <param name="contentLength">The content length in bytes of the variable 'Message' field from which the size will be calculated.</param>
+    public static int GetRequiredSize(int contentLength) => contentLength + 1 + 13;
+}
+
+
+/// <summary>
 /// Is sent by the server when: A player requested to join a guild. This message is sent then to the guild master.
 /// Causes reaction on client side: The guild master gets a message box with the request popping up.
 /// </summary>
@@ -31893,6 +32026,388 @@ public readonly ref struct ChatCommandParameterRef
 
 
 /// <summary>
+/// Is sent by the server when: After the client requested the Discord integration info, and after the player unlinked the account.
+/// Causes reaction on client side: The client configures its Discord features with it: the Rich Presence, a button which opens the invite, the account link dialog and the notice that the chat is mirrored.
+/// </summary>
+public readonly ref struct DiscordIntegrationInfoRef
+{
+    private readonly Span<byte> _data;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscordIntegrationInfoRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    public DiscordIntegrationInfoRef(Span<byte> data)
+        : this(data, true)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscordIntegrationInfoRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    /// <param name="initialize">If set to <c>true</c>, the header data is automatically initialized and written to the underlying span.</param>
+    private DiscordIntegrationInfoRef(Span<byte> data, bool initialize)
+    {
+        this._data = data;
+        if (initialize)
+        {
+            var header = this.Header;
+            header.Type = HeaderType;
+            header.Code = Code;
+            header.Length = (byte)Math.Min(data.Length, Length);
+            header.SubCode = SubCode;
+        }
+    }
+
+    /// <summary>
+    /// Gets the header type of this data packet.
+    /// </summary>
+    public static byte HeaderType => 0xC1;
+
+    /// <summary>
+    /// Gets the operation code of this data packet.
+    /// </summary>
+    public static byte Code => 0xF5;
+
+    /// <summary>
+    /// Gets the operation sub-code of this data packet.
+    /// The <see cref="Code" /> is used as a grouping key.
+    /// </summary>
+    public static byte SubCode => 0x03;
+
+    /// <summary>
+    /// Gets the initial length of this data packet. When the size is dynamic, this value may be bigger than actually needed.
+    /// </summary>
+    public static int Length => 224;
+
+    /// <summary>
+    /// Gets the header of this packet.
+    /// </summary>
+    public C1HeaderWithSubCodeRef Header => new (this._data);
+
+    /// <summary>
+    /// Gets or sets defines if the account is linked to a Discord user.
+    /// </summary>
+    public bool IsAccountLinked
+    {
+        get => this._data[4..].GetBoolean();
+        set => this._data[4..].SetBoolean(value);
+    }
+
+    /// <summary>
+    /// Gets or sets defines if the chat of the guild of the character is mirrored to a Discord channel.
+    /// </summary>
+    public bool IsGuildChatBridged
+    {
+        get => this._data[5..].GetBoolean();
+        set => this._data[5..].SetBoolean(value);
+    }
+
+    /// <summary>
+    /// Gets or sets defines if the chat of the alliance of the character is mirrored to a Discord channel.
+    /// </summary>
+    public bool IsAllianceChatBridged
+    {
+        get => this._data[6..].GetBoolean();
+        set => this._data[6..].SetBoolean(value);
+    }
+
+    /// <summary>
+    /// Gets or sets defines if the world chat leaves the game for Discord: the server publishes it, so a Discord bot with a world chat channel mirrors it. The server can't tell whether the bot has such a channel.
+    /// </summary>
+    public bool IsWorldChatBridged
+    {
+        get => this._data[7..].GetBoolean();
+        set => this._data[7..].SetBoolean(value);
+    }
+
+    /// <summary>
+    /// Gets or sets the id of the Discord application which the client uses for the Rich Presence. Empty, if the server has none.
+    /// </summary>
+    public string RichPresenceApplicationId
+    {
+        get => this._data.ExtractString(8, 20, System.Text.Encoding.UTF8);
+        set => this._data.Slice(8, 20).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Gets or sets the key of the large image of the Rich Presence, as uploaded to the Discord application. Empty for no image.
+    /// </summary>
+    public string RichPresenceLargeImageKey
+    {
+        get => this._data.ExtractString(28, 32, System.Text.Encoding.UTF8);
+        set => this._data.Slice(28, 32).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Gets or sets the key of the small image of the Rich Presence, as uploaded to the Discord application. Empty for no image.
+    /// </summary>
+    public string RichPresenceSmallImageKey
+    {
+        get => this._data.ExtractString(60, 32, System.Text.Encoding.UTF8);
+        set => this._data.Slice(60, 32).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Gets or sets the invite link to the Discord server of the game server, e.g. 'https://discord.gg/abc123'. Empty, if the server has none.
+    /// </summary>
+    public string InviteUrl
+    {
+        get => this._data.ExtractString(92, 100, System.Text.Encoding.UTF8);
+        set => this._data.Slice(92, 100).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Gets or sets the name of the Discord user which the account is linked to. Empty, if the account isn't linked.
+    /// </summary>
+    public string LinkedUserName
+    {
+        get => this._data.ExtractString(192, 32, System.Text.Encoding.UTF8);
+        set => this._data.Slice(192, 32).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Performs an implicit conversion from a Span of bytes to a <see cref="DiscordIntegrationInfo"/>.
+    /// </summary>
+    /// <param name="packet">The packet as span.</param>
+    /// <returns>The packet as struct.</returns>
+    public static implicit operator DiscordIntegrationInfoRef(Span<byte> packet) => new (packet, false);
+
+    /// <summary>
+    /// Performs an implicit conversion from <see cref="DiscordIntegrationInfo"/> to a Span of bytes.
+    /// </summary>
+    /// <param name="packet">The packet as struct.</param>
+    /// <returns>The packet as byte span.</returns>
+    public static implicit operator Span<byte>(DiscordIntegrationInfoRef packet) => packet._data; 
+}
+
+
+/// <summary>
+/// Is sent by the server when: After the client requested a code to link the account to a Discord user.
+/// Causes reaction on client side: The client shows the code, so that the player can enter it in Discord.
+/// </summary>
+public readonly ref struct DiscordLinkCodeRef
+{
+    private readonly Span<byte> _data;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscordLinkCodeRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    public DiscordLinkCodeRef(Span<byte> data)
+        : this(data, true)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscordLinkCodeRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    /// <param name="initialize">If set to <c>true</c>, the header data is automatically initialized and written to the underlying span.</param>
+    private DiscordLinkCodeRef(Span<byte> data, bool initialize)
+    {
+        this._data = data;
+        if (initialize)
+        {
+            var header = this.Header;
+            header.Type = HeaderType;
+            header.Code = Code;
+            header.Length = (byte)Math.Min(data.Length, Length);
+            header.SubCode = SubCode;
+        }
+    }
+
+    /// <summary>
+    /// Gets the header type of this data packet.
+    /// </summary>
+    public static byte HeaderType => 0xC1;
+
+    /// <summary>
+    /// Gets the operation code of this data packet.
+    /// </summary>
+    public static byte Code => 0xF5;
+
+    /// <summary>
+    /// Gets the operation sub-code of this data packet.
+    /// The <see cref="Code" /> is used as a grouping key.
+    /// </summary>
+    public static byte SubCode => 0x05;
+
+    /// <summary>
+    /// Gets the initial length of this data packet. When the size is dynamic, this value may be bigger than actually needed.
+    /// </summary>
+    public static int Length => 16;
+
+    /// <summary>
+    /// Gets the header of this packet.
+    /// </summary>
+    public C1HeaderWithSubCodeRef Header => new (this._data);
+
+    /// <summary>
+    /// Gets or sets the result.
+    /// </summary>
+    public DiscordLinkCode.DiscordLinkCodeResult Result
+    {
+        get => (DiscordLinkCode.DiscordLinkCodeResult)this._data[4];
+        set => this._data[4] = (byte)value;
+    }
+
+    /// <summary>
+    /// Gets or sets the one-time code, e.g. 'ABCD-EFGH'. The player enters it in Discord with '/link'.
+    /// </summary>
+    public string LinkCode
+    {
+        get => this._data.ExtractString(5, 10, System.Text.Encoding.UTF8);
+        set => this._data.Slice(5, 10).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Gets or sets the number of minutes the code is valid.
+    /// </summary>
+    public byte ValidMinutes
+    {
+        get => this._data[15];
+        set => this._data[15] = value;
+    }
+
+    /// <summary>
+    /// Performs an implicit conversion from a Span of bytes to a <see cref="DiscordLinkCode"/>.
+    /// </summary>
+    /// <param name="packet">The packet as span.</param>
+    /// <returns>The packet as struct.</returns>
+    public static implicit operator DiscordLinkCodeRef(Span<byte> packet) => new (packet, false);
+
+    /// <summary>
+    /// Performs an implicit conversion from <see cref="DiscordLinkCode"/> to a Span of bytes.
+    /// </summary>
+    /// <param name="packet">The packet as struct.</param>
+    /// <returns>The packet as byte span.</returns>
+    public static implicit operator Span<byte>(DiscordLinkCodeRef packet) => packet._data; 
+}
+
+
+/// <summary>
+/// Is sent by the server when: A message was written outside of the game, e.g. in a Discord channel which is bound to the chat of a guild, an alliance or the world chat. It's only sent to clients which requested the DiscordIntegrationInfo before; other clients get it as normal chat message, with a prefix in front of the sender.
+/// Causes reaction on client side: The client shows the message in the chat of its scope, marked with its source, so that it can't be mistaken for a message of a character.
+/// </summary>
+public readonly ref struct ExternalChatMessageRef
+{
+    private readonly Span<byte> _data;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExternalChatMessageRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    public ExternalChatMessageRef(Span<byte> data)
+        : this(data, true)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExternalChatMessageRef"/> struct.
+    /// </summary>
+    /// <param name="data">The underlying data.</param>
+    /// <param name="initialize">If set to <c>true</c>, the header data is automatically initialized and written to the underlying span.</param>
+    private ExternalChatMessageRef(Span<byte> data, bool initialize)
+    {
+        this._data = data;
+        if (initialize)
+        {
+            var header = this.Header;
+            header.Type = HeaderType;
+            header.Code = Code;
+            header.Length = (ushort)data.Length;
+            header.SubCode = SubCode;
+        }
+    }
+
+    /// <summary>
+    /// Gets the header type of this data packet.
+    /// </summary>
+    public static byte HeaderType => 0xC2;
+
+    /// <summary>
+    /// Gets the operation code of this data packet.
+    /// </summary>
+    public static byte Code => 0xF5;
+
+    /// <summary>
+    /// Gets the operation sub-code of this data packet.
+    /// The <see cref="Code" /> is used as a grouping key.
+    /// </summary>
+    public static byte SubCode => 0x07;
+
+    /// <summary>
+    /// Gets the header of this packet.
+    /// </summary>
+    public C2HeaderWithSubCodeRef Header => new (this._data);
+
+    /// <summary>
+    /// Gets or sets the source.
+    /// </summary>
+    public ExternalChatMessage.ExternalChatSource Source
+    {
+        get => (ExternalChatMessage.ExternalChatSource)this._data[5];
+        set => this._data[5] = (byte)value;
+    }
+
+    /// <summary>
+    /// Gets or sets the scope.
+    /// </summary>
+    public ExternalChatMessage.ExternalChatScope Scope
+    {
+        get => (ExternalChatMessage.ExternalChatScope)this._data[6];
+        set => this._data[6] = (byte)value;
+    }
+
+    /// <summary>
+    /// Gets or sets the name of the sender, without a prefix. It's not a character name, so it can't be whispered.
+    /// </summary>
+    public string SenderName
+    {
+        get => this._data.ExtractString(7, 48, System.Text.Encoding.UTF8);
+        set => this._data.Slice(7, 48).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Gets or sets the message.
+    /// </summary>
+    public string Message
+    {
+        get => this._data.ExtractString(55, this._data.Length - 55, System.Text.Encoding.UTF8);
+        set => this._data.Slice(55).WriteString(value, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Performs an implicit conversion from a Span of bytes to a <see cref="ExternalChatMessage"/>.
+    /// </summary>
+    /// <param name="packet">The packet as span.</param>
+    /// <returns>The packet as struct.</returns>
+    public static implicit operator ExternalChatMessageRef(Span<byte> packet) => new (packet, false);
+
+    /// <summary>
+    /// Performs an implicit conversion from <see cref="ExternalChatMessage"/> to a Span of bytes.
+    /// </summary>
+    /// <param name="packet">The packet as struct.</param>
+    /// <returns>The packet as byte span.</returns>
+    public static implicit operator Span<byte>(ExternalChatMessageRef packet) => packet._data; 
+
+    /// <summary>
+    /// Calculates the size of the packet for the specified field content.
+    /// </summary>
+    /// <param name="content">The content of the variable 'Message' field from which the size will be calculated.</param>
+    public static int GetRequiredSize(string content) => System.Text.Encoding.UTF8.GetByteCount(content) + 1 + 55;
+
+    /// <summary>
+    /// Calculates the size of the packet for the specified field content.
+    /// </summary>
+    /// <param name="contentLength">The content length in bytes of the variable 'Message' field from which the size will be calculated.</param>
+    public static int GetRequiredSize(int contentLength) => contentLength + 1 + 55;
+}
+
+
+/// <summary>
 /// Is sent by the server when: The player receives the result of registering Rena or Event Chips at the Golden Archer NPC.
 /// Causes reaction on client side: The client updates the Golden Archer interface with total registered count and remaining count in inventory.
 /// </summary>
@@ -35291,7 +35806,7 @@ public readonly ref struct CastleSiegeGuildEntryRef
 
 
 /// <summary>
-/// Is sent by the server when: The server sends same-side player positions to a Castle Siege mini-map requester.
+/// Is sent by the server when: The server pushes same-side player positions to an online Castle Siege alliance master, on a periodic timer while the siege is active.
 /// Causes reaction on client side: The client updates the mini map with the player positions.
 /// </summary>
 public readonly ref struct CastleSiegeMiniMapPlayerPositionsRef
@@ -36136,7 +36651,7 @@ public readonly ref struct CastleSiegeHuntingZoneEnterResponseRef
 
 
 /// <summary>
-/// Is sent by the server when: The server sends alive gate and Guardian Statue positions to a Castle Siege mini-map requester.
+/// Is sent by the server when: The server pushes alive gate and Guardian Statue positions to an online Castle Siege alliance master, on a periodic timer while the siege is active.
 /// Causes reaction on client side: The client updates the mini map with the siege-NPC positions.
 /// </summary>
 public readonly ref struct CastleSiegeMiniMapNpcPositionsRef

@@ -581,6 +581,12 @@ namespace MUnique.OpenMU.Persistence.Initialization.Properties {
         /// <summary>Gets the localized FixSocketSeedCraftingUpdatePlugIn_Description text.</summary>
         public static string FixSocketSeedCraftingUpdatePlugIn_Description => ResourceManager.GetString("FixSocketSeedCraftingUpdatePlugIn_Description", resourceCulture)!;
 
+        /// <summary>Gets the localized AddRageFighterAncientSetsUpdatePlugIn_Name text.</summary>
+        public static string AddRageFighterAncientSetsUpdatePlugIn_Name => ResourceManager.GetString("AddRageFighterAncientSetsUpdatePlugIn_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized AddRageFighterAncientSetsUpdatePlugIn_Description text.</summary>
+        public static string AddRageFighterAncientSetsUpdatePlugIn_Description => ResourceManager.GetString("AddRageFighterAncientSetsUpdatePlugIn_Description", resourceCulture)!;
+
         /// <summary>Gets the localized FixWarriorMorningStarPlugIn_Name text.</summary>
         public static string FixWarriorMorningStarPlugIn_Name => ResourceManager.GetString("FixWarriorMorningStarPlugIn_Name", resourceCulture)!;
 
@@ -677,6 +683,12 @@ namespace MUnique.OpenMU.Persistence.Initialization.Properties {
         /// <summary>Gets the localized FixCharStatsForceWavePlugInBase_Description text.</summary>
         public static string FixCharStatsForceWavePlugInBase_Description => ResourceManager.GetString("FixCharStatsForceWavePlugInBase_Description", resourceCulture)!;
 
+        /// <summary>Gets the localized FixOrbRequirementsPlugInBase_Name text.</summary>
+        public static string FixOrbRequirementsPlugInBase_Name => ResourceManager.GetString("FixOrbRequirementsPlugInBase_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized FixOrbRequirementsPlugInBase_Description text.</summary>
+        public static string FixOrbRequirementsPlugInBase_Description => ResourceManager.GetString("FixOrbRequirementsPlugInBase_Description", resourceCulture)!;
+
         /// <summary>Gets the localized FinishElfMasterTreePlugIn_Name text.</summary>
         public static string FinishElfMasterTreePlugIn_Name => ResourceManager.GetString("FinishElfMasterTreePlugIn_Name", resourceCulture)!;
 
@@ -742,6 +754,12 @@ namespace MUnique.OpenMU.Persistence.Initialization.Properties {
 
         /// <summary>Gets the localized AddKanturuDataUpdatePlugIn_Description text.</summary>
         public static string AddKanturuDataUpdatePlugIn_Description => ResourceManager.GetString("AddKanturuDataUpdatePlugIn_Description", resourceCulture)!;
+
+        /// <summary>Gets the localized StandardizeEventEnterDurationPlugInBase_Name text.</summary>
+        public static string StandardizeEventEnterDurationPlugInBase_Name => ResourceManager.GetString("StandardizeEventEnterDurationPlugInBase_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized StandardizeEventEnterDurationPlugInBase_Description text.</summary>
+        public static string StandardizeEventEnterDurationPlugInBase_Description => ResourceManager.GetString("StandardizeEventEnterDurationPlugInBase_Description", resourceCulture)!;
 
         /// <summary>Gets the localized FixDrainLifeSkillUpdate_Name text.</summary>
         public static string FixDrainLifeSkillUpdate_Name => ResourceManager.GetString("FixDrainLifeSkillUpdate_Name", resourceCulture)!;
@@ -863,6 +881,12 @@ namespace MUnique.OpenMU.Persistence.Initialization.Properties {
         /// <summary>Gets the localized FixVulcanusWarpIndexUpdatePlugIn_Description text.</summary>
         public static string FixVulcanusWarpIndexUpdatePlugIn_Description => ResourceManager.GetString("FixVulcanusWarpIndexUpdatePlugIn_Description", resourceCulture)!;
 
+        /// <summary>Gets the localized FixFireScreamRequirementsUpdatePlugIn_Name text.</summary>
+        public static string FixFireScreamRequirementsUpdatePlugIn_Name => ResourceManager.GetString("FixFireScreamRequirementsUpdatePlugIn_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized FixFireScreamRequirementsUpdatePlugIn_Description text.</summary>
+        public static string FixFireScreamRequirementsUpdatePlugIn_Description => ResourceManager.GetString("FixFireScreamRequirementsUpdatePlugIn_Description", resourceCulture)!;
+
         /// <summary>Gets the localized AddCrywolfEventUpdatePlugIn_Name text.</summary>
         public static string AddCrywolfEventUpdatePlugIn_Name => ResourceManager.GetString("AddCrywolfEventUpdatePlugIn_Name", resourceCulture)!;
 
@@ -904,6 +928,18 @@ namespace MUnique.OpenMU.Persistence.Initialization.Properties {
 
         /// <summary>Gets the localized MoveServerPortsOutOfDynamicRangePlugInBase_Description text.</summary>
         public static string MoveServerPortsOutOfDynamicRangePlugInBase_Description => ResourceManager.GetString("MoveServerPortsOutOfDynamicRangePlugInBase_Description", resourceCulture)!;
+
+        /// <summary>Gets the localized ScopeExtraProjectilesPlugIn_Name text.</summary>
+        public static string ScopeExtraProjectilesPlugIn_Name => ResourceManager.GetString("ScopeExtraProjectilesPlugIn_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized ScopeExtraProjectilesPlugIn_Description text.</summary>
+        public static string ScopeExtraProjectilesPlugIn_Description => ResourceManager.GetString("ScopeExtraProjectilesPlugIn_Description", resourceCulture)!;
+
+        /// <summary>Gets the localized ConfigureCastleSiegeGuardTalkPlugInsUpdatePlugIn_Name text.</summary>
+        public static string ConfigureCastleSiegeGuardTalkPlugInsUpdatePlugIn_Name => ResourceManager.GetString("ConfigureCastleSiegeGuardTalkPlugInsUpdatePlugIn_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized ConfigureCastleSiegeGuardTalkPlugInsUpdatePlugIn_Description text.</summary>
+        public static string ConfigureCastleSiegeGuardTalkPlugInsUpdatePlugIn_Description => ResourceManager.GetString("ConfigureCastleSiegeGuardTalkPlugInsUpdatePlugIn_Description", resourceCulture)!;
 
     }
 }

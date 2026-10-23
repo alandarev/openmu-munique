@@ -54,6 +54,11 @@ public enum MessageType
     /// The message is a guild notice (green center).
     /// </summary>
     GuildNotice = 2,
+
+    /// <summary>
+    /// The message scrolls in bold across the top of the screen (slide notice).
+    /// </summary>
+    SlideNotice = 3,
 }
 
 /// <summary>
@@ -88,6 +93,13 @@ public interface IGameServer : IManageableServer, IFriendSystemSubscriber
     /// <param name="sender">The sender character name.</param>
     /// <param name="message">The message.</param>
     ValueTask AllianceChatMessageAsync(uint guildId, string sender, string message);
+
+    /// <summary>
+    /// Sends a message of the world chat to all connected players.
+    /// </summary>
+    /// <param name="sender">The sender, e.g. the character name.</param>
+    /// <param name="message">The message.</param>
+    ValueTask WorldChatMessageAsync(string sender, string message);
 
     /// <summary>
     /// Sends a global message to all connected players with the specified message type.
