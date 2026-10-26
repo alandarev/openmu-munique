@@ -61,6 +61,7 @@ const sidebars = {
       items: [
         "server-features/castle-siege",
         'server-features/bots',
+        'server-features/web-client-transport',
         'server-features/test-actors',
         'server-features/stay-dead',
         'server-features/pvp-damage',
