@@ -14,6 +14,7 @@ using MUnique.OpenMU.GameLogic.MiniGames;
 using MUnique.OpenMU.GameLogic.MuHelper;
 using MUnique.OpenMU.GameLogic.NPC;
 using MUnique.OpenMU.GameLogic.Pet;
+using MUnique.OpenMU.GameLogic.PlayerActions;
 using MUnique.OpenMU.GameLogic.PlayerActions.Items;
 using MUnique.OpenMU.GameLogic.PlayerActions.Skills;
 using MUnique.OpenMU.GameLogic.PlayerActions.Trade;
@@ -36,6 +37,8 @@ using Nito.AsyncEx;
 /// </summary>
 public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacker, ITrader, IPartyMember, IRotatable, IHasBucketInformation, ISupportWalk, IMovable, ILoggerOwner<Player>
 {
+    private const int IceSkillNumber = 7;
+
     private static readonly MagicEffectDefinition GMEffect = new GameMasterMagicEffectDefinition
     {
         InformObservers = true,
@@ -218,7 +221,10 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
     /// <summary>
     /// Gets the skill hit validator.
     /// </summary>
-    public SkillHitValidator SkillHitValidator => this._skillHitValidator ??= new SkillHitValidator(this.Logger, this.GameContext.PlugInManager);
+    public SkillHitValidator SkillHitValidator => this._skillHitValidator ??= new SkillHitValidator(
+        this.Logger,
+        this.GameContext.PlugInManager,
+        configuration: this.GameContext.FeaturePlugIns.GetPlugIn<SpeedHackDetectPlugIn>()?.Configuration);
 
     /// <inheritdoc/>
     public int Money
@@ -790,6 +796,12 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
             return null;
         }
 
+        if (Rand.NextRandomBool(attacker.Attributes[Stats.CrystalSwordIceChance])
+            && this.GameContext.Configuration.Skills.FirstOrDefault(s => s.Number == IceSkillNumber) is { } ice)
+        {
+            skill = new SkillEntry { Skill = ice };
+        }
+
         var hitInfo = await attacker.CalculateDamageAsync(this, skill, isCombo, damageFactor).ConfigureAwait(false);
 
         if (skill?.Skill is not { } attackSkill || attackSkill.DamageType != DamageType.Fenrir)
@@ -828,7 +840,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
 
         bool isPvpDamage = attacker is Player or IPlayerSurrogate;
         float damage = isPvpDamage ? hitInfo.TotalDamage : attacker.Attributes[Stats.MinimumPhysBaseDmg];
-        await this.DecreaseItemDurabilityAfterHitAsync(damage, isPvpDamage, skill).ConfigureAwait(false);
+        await this.DecreaseItemDurabilityAfterHitAsync(damage, isPvpDamage, skill, hitInfo.PetDamage).ConfigureAwait(false);
 
         if (attacker as IPlayerSurrogate is { } playerSurrogate)
         {
@@ -1507,6 +1519,15 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
         return this._observerToWorldViewAdapter.ClearObservingObjectsListAsync();
     }
 
+    /// <summary>
+    /// Gets the gate at which the player is spawned, e.g. after its death.
+    /// </summary>
+    /// <returns>The spawn gate.</returns>
+    internal ValueTask<ExitGate> GetSpawnGateOfCurrentMapAsync()
+    {
+        return this._mapTransitions.GetSpawnGateOfCurrentMapAsync();
+    }
+
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
@@ -1889,6 +1910,33 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
     }
 
     /// <summary>
+    /// Moves the character to an active map, if its current map is inactive, so that
+    /// it doesn't enter a map which is not available in the game anymore.
+    /// The target is the safezone map of the inactive map, or the home map of the character class,
+    /// or any other active map, see <see cref="GameMapDefinitionExtensions.GetActiveSpawnMap"/>.
+    /// </summary>
+    /// <param name="character">The character.</param>
+    private void MoveOutOfInactiveMap(Character character)
+    {
+        if (character.CurrentMap is not { IsActive: false } inactiveMap)
+        {
+            return;
+        }
+
+        var targetMap = this.GameContext.Configuration.GetActiveSpawnMap(inactiveMap.SafezoneMap, character.CharacterClass?.HomeMap);
+        if (targetMap?.GetSafezoneGate() is not { } spawnGate)
+        {
+            this.Logger.LogWarning("Character {character} is on the inactive map {map}, but there is no active map to move it to.", character, inactiveMap);
+            return;
+        }
+
+        this.Logger.LogInformation("Character {character} is on the inactive map {map}, moving it to {targetMap}.", character, inactiveMap, targetMap);
+        character.CurrentMap = targetMap;
+        character.PositionX = (byte)Rand.NextInt(spawnGate.X1, spawnGate.X2 + 1);
+        character.PositionY = (byte)Rand.NextInt(spawnGate.Y1, spawnGate.Y2 + 1);
+    }
+
+    /// <summary>
     /// Releases the attribute system of the character which was in the game.
     /// </summary>
     /// <remarks>
@@ -2020,6 +2068,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
         }
 
         selectedCharacter.CurrentMap ??= selectedCharacter.CharacterClass?.HomeMap;
+        this.MoveOutOfInactiveMap(selectedCharacter);
         await this.GameContext.MiniGames.TryRejoinAsync(this).ConfigureAwait(false);
         this.AddMissingStatAttributes();
 
@@ -2167,7 +2216,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
         }
     }
 
-    private async ValueTask DecreaseItemDurabilityAfterHitAsync(float damage, bool isPvpDamage, SkillEntry? skill)
+    private async ValueTask DecreaseItemDurabilityAfterHitAsync(float damage, bool isPvpDamage, SkillEntry? skill, float petDamage)
     {
         if (!isPvpDamage)
         {
@@ -2201,7 +2250,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
 
         if (this.Inventory?.GetItem(InventoryConstants.PetSlot) is { Durability: > 0.0 } pet)
         {
-            await this.DecreasePetDurabilityAsync(pet, damage).ConfigureAwait(false);
+            await this.DecreasePetDurabilityAsync(pet, petDamage).ConfigureAwait(false);
         }
     }
 
