@@ -116,6 +116,72 @@ public class ExperienceRateSplitTest
     }
 
     /// <summary>
+    /// Verifies that a party member with master levels, which is still below the maximum level (e.g. after a reset),
+    /// gains the same experience as for a solo kill when no other member is in range (see MUnique/OpenMU#1360).
+    /// </summary>
+    [Test]
+    public async ValueTask LonePartyMemberWithMasterLevelsGainsSoloExperienceAsync()
+    {
+        var soloContext = this.CreateGameServerContext(
+            normalExperienceRate: 1.0f,
+            globalMasterExperienceRate: 1.0f,
+            maximumLevel: 400,
+            maximumMasterLevel: 200);
+        var soloPlayer = await this.CreatePlayerAsync(soloContext, level: 10, totalLevel: 210, isMasterClass: true).ConfigureAwait(false);
+        var soloGained = await soloPlayer.AddExpAfterKillAsync(CreateKilledObject(level: 100).Object).ConfigureAwait(false);
+
+        var partyContext = this.CreateGameServerContext(
+            normalExperienceRate: 1.0f,
+            globalMasterExperienceRate: 1.0f,
+            maximumLevel: 400,
+            maximumMasterLevel: 200);
+        var killer = await this.CreatePlayerAsync(partyContext, level: 10, totalLevel: 210, isMasterClass: true).ConfigureAwait(false);
+        var absentMember = await this.CreatePlayerAsync(partyContext, level: 10, totalLevel: 10, isMasterClass: false).ConfigureAwait(false);
+        var party = new Party(new PartyManager(5, new NullLogger<Party>()), 5, new NullLogger<Party>());
+        await party.AddAsync(killer).ConfigureAwait(false);
+        await party.AddAsync(absentMember).ConfigureAwait(false);
+
+        // The other member is out of range, e.g. on another map.
+        await killer.RemoveObserverAsync(absentMember).ConfigureAwait(false);
+
+        var shares = await party.DistributeExperienceAfterKillAsync(CreateKilledObject(level: 100).Object, killer).ConfigureAwait(false);
+
+        Assert.That(soloGained, Is.GreaterThan(0));
+        Assert.That(shares, Has.Count.EqualTo(1));
+        // Within 1, because the party calculates the experience per level as float.
+        Assert.That(shares[0].Experience, Is.EqualTo(soloGained).Within(1));
+        Assert.That(killer.SelectedCharacter!.Experience, Is.EqualTo(shares[0].Experience));
+        Assert.That(absentMember.SelectedCharacter!.Experience, Is.EqualTo(0));
+    }
+
+    /// <summary>
+    /// Verifies that the party experience is split by the total levels, so a member with master levels below the
+    /// maximum level gets its share of the master levels, too.
+    /// </summary>
+    [Test]
+    public async ValueTask PartyExperienceIsSplitByTotalLevelAsync()
+    {
+        var context = this.CreateGameServerContext(
+            normalExperienceRate: 1.0f,
+            globalMasterExperienceRate: 1.0f,
+            maximumLevel: 400,
+            maximumMasterLevel: 200);
+        var resetMember = await this.CreatePlayerAsync(context, level: 100, totalLevel: 300, isMasterClass: true).ConfigureAwait(false);
+        var otherMember = await this.CreatePlayerAsync(context, level: 100, totalLevel: 100, isMasterClass: false).ConfigureAwait(false);
+        var party = new Party(new PartyManager(5, new NullLogger<Party>()), 5, new NullLogger<Party>());
+        await party.AddAsync(resetMember).ConfigureAwait(false);
+        await party.AddAsync(otherMember).ConfigureAwait(false);
+        await resetMember.AddObserverAsync(otherMember).ConfigureAwait(false);
+
+        var shares = await party.DistributeExperienceAfterKillAsync(CreateKilledObject(level: 150).Object, resetMember).ConfigureAwait(false);
+
+        var resetShare = shares.First(s => s.Player == resetMember).Experience;
+        var otherShare = shares.First(s => s.Player == otherMember).Experience;
+        Assert.That(otherShare, Is.GreaterThan(0));
+        Assert.That(resetShare, Is.EqualTo(otherShare * 3).Within(3));
+    }
+
+    /// <summary>
     /// Verifies that the <see cref="IExperienceCalculationPlugIn"/>s are applied to the experience of
     /// each party member, as for a solo kill. Experience bonuses can be implemented as such a plugin.
     /// </summary>
@@ -156,6 +222,41 @@ public class ExperienceRateSplitTest
                 ? (bonusMember.SelectedCharacter!.MasterExperience, otherMember.SelectedCharacter!.MasterExperience)
                 : (bonusMember.SelectedCharacter!.Experience, otherMember.SelectedCharacter!.Experience);
         }
+    }
+
+    /// <summary>
+    /// Verifies that the <see cref="IPlayerGainedExperiencePlugIn"/>s get the experience of each party member, as for
+    /// a solo kill. That's how the trainable pets of the Dark Lord gain their share (see MUnique/OpenMU#1374).
+    /// A member at the maximum level without the master quest gains nothing, so it isn't reported.
+    /// </summary>
+    /// <param name="isMasterClass">Whether the members gain master experience.</param>
+    [TestCase(false)]
+    [TestCase(true)]
+    public async ValueTask PartyDistributionReportsGainedExperiencePerMemberAsync(bool isMasterClass)
+    {
+        var context = this.CreateGameServerContext(
+            normalExperienceRate: 1.0f,
+            globalMasterExperienceRate: 1.0f,
+            maximumLevel: 3,
+            maximumMasterLevel: 200);
+        var gainingMember = await this.CreatePlayerAsync(context, level: isMasterClass ? (short)3 : (short)2, totalLevel: 3, isMasterClass).ConfigureAwait(false);
+        var maxedMember = await this.CreatePlayerAsync(context, level: 3, totalLevel: 3, isMasterClass: false).ConfigureAwait(false);
+        var plugIn = new ExperienceRecordingPlugIn();
+        context.PlugInManager.RegisterPlugInAtPlugInPoint<IPlayerGainedExperiencePlugIn>(plugIn);
+
+        var party = new Party(new PartyManager(5, new NullLogger<Party>()), 5, new NullLogger<Party>());
+        await party.AddAsync(gainingMember).ConfigureAwait(false);
+        await party.AddAsync(maxedMember).ConfigureAwait(false);
+        await gainingMember.AddObserverAsync(maxedMember).ConfigureAwait(false);
+
+        var killedObject = CreateKilledObject(level: 5).Object;
+        var shares = await party.DistributeExperienceAfterKillAsync(killedObject, gainingMember).ConfigureAwait(false);
+
+        Assert.That(plugIn.Gains, Has.Count.EqualTo(1));
+        Assert.That(plugIn.Gains[0].Player, Is.SameAs(gainingMember));
+        Assert.That(plugIn.Gains[0].Experience, Is.GreaterThan(0).And.EqualTo(shares.First(s => s.Player == gainingMember).Experience));
+        Assert.That(plugIn.Gains[0].KilledObject, Is.SameAs(killedObject));
+        Assert.That(plugIn.Gains[0].IsMasterExperience, Is.EqualTo(isMasterClass));
     }
 
     /// <summary>
@@ -376,6 +477,18 @@ public class ExperienceRateSplitTest
         mapInitializer.PlugInManager = gameServerContext.PlugInManager;
         mapInitializer.PathFinderPool = gameServerContext.PathFinderPool;
         return gameServerContext;
+    }
+
+    [Guid("9D3F1B72-5E8A-4C26-A0B4-7F1E3D5C9A68")]
+    private sealed class ExperienceRecordingPlugIn : IPlayerGainedExperiencePlugIn
+    {
+        public List<(Player Player, int Experience, IAttackable KilledObject, bool IsMasterExperience)> Gains { get; } = new();
+
+        public ValueTask PlayerGainedExperienceAsync(Player player, int experience, IAttackable killedObject, bool isMasterExperience)
+        {
+            this.Gains.Add((player, experience, killedObject, isMasterExperience));
+            return ValueTask.CompletedTask;
+        }
     }
 
     [Guid("4E2B9C61-7A3D-4F05-8B1E-2C6D9A0F5E37")]

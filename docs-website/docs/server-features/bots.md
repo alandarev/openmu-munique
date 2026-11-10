@@ -29,12 +29,18 @@ stats, skills and starter gear. They are created once, saved like any other
 character, and reloaded on every start — a bot's progress belongs to the
 server's data, not to a process. Every bot animates one character in its own
 persistence context, so the characters of one account can play at the same time.
+Names mix the styles players pick — fantasy names, compound names like
+"DarkBlade" and short handles like "xRavenx" — so the bots don't stand out as
+one family. Names which look nearly the same, like "Hex" and "Hexx" or "Brodan"
+and "Broaedan", are drawn again: they would read like one player's alts.
 
 **Two ticks make up the mind of a bot.** The offline MU Helper AI runs twice a
 second and does what it does for a human's offline session: attack, heal, buff,
-pick items up. On top of it, a bot navigator runs every second and decides the
-things an offline session never had to: where to hunt, when to travel or warp,
-when to go shopping, whom to follow. Everything a bot changes about itself —
+pick items up. On top of it, a bot navigator runs twice a second as well and
+decides the things an offline session never had to: where to hunt, when to travel
+or warp, when to go shopping, whom to follow. A bot travels in short hops, so it
+can stop for a monster on the way; the navigator starts the next hop as soon as
+one ends. Everything a bot changes about itself —
 equipping, jewels, resets, master points — is queued into the AI tick, so it
 never runs while the combat handler is working on the same character.
 
@@ -79,11 +85,16 @@ The *Bots* feature plugin, in the "Feature Plugins" section of the
   random level and upgraded gear. Only affects bots which are generated from now
   on - an existing population keeps its state until it is regenerated (see
   `Reset bots`).
-- **`Jewel stock per kind`** — how many Jewels of Bless, Soul and Life a bot
-  keeps of each kind. Above it, it stops picking them up and sells what it
-  already carries. Depends on the server's drop rates: on high rates a small
-  stock keeps the backpack free, on low rates a larger one is never reached
-  anyway.
+- **`Jewel stock per kind`** — how many Jewels of Bless, Soul, Life and Chaos a
+  bot keeps of each kind (Chaos only with a lucky piece to mix). Above it, it
+  stops picking them up and sells what it already carries. Depends on the
+  server's drop rates: on high rates a small stock keeps the backpack free, on
+  low rates a larger one is never reached anyway.
+- **`Maps forbidden for bots`** — maps bots never warp to, picked from the
+  configured maps: they don't hunt there, don't follow a party leader there and
+  don't enter events held there, and a bot which logs in on one leaves it.
+  Players are not affected. Empty by default; servers use it for maps where bots
+  get in the players' way, like the Arena or Crywolf.
 - **`Potion stock charges`** — how many charges of healing and of mana potions a
   bot restocks to at a merchant. Depends on what the shops sell: a server whose
   potions come in stacks of 255 fills the target in a single purchase.
@@ -173,6 +184,24 @@ servers keep the guide's plain vitality percentage. Classes with two viable
 archetypes (a warrior or a wizard Magic Gladiator, a pure or an energy Blade
 Knight, an archer or a supporter Elf) roll one per bot, and a stat which hits a
 server's maximum overflows into the rest of the build.
+The build's proportions apply to everything a character has invested, not to
+each level-up's handful of points on its own, so the small shares — a wizard's
+strength, a supporter's agility — grow over the levels too, and a character
+which is off its build (from before this rule, or from a reset which keeps the
+stats) is evened out over its next level-ups: its stats above their share wait
+until the others caught up.
+
+Before the build gets its points, the gear does. A bot keeps the strength,
+agility, energy or vitality its worn weapon, shield and armor require one item
+level up — it takes a piece off to apply a jewel and has to be able to put it
+back on — and plans for the best weapon and armor it can find at its level:
+monster drops whose drop level and level requirement it reaches. Of those, it
+takes the one which costs its build the least among the nearly best, and none
+which would take more than half of all its points beyond what the build invests
+anyway, or more points than it has. That is why a supporter Elf invests the
+agility of an armor set, and why a top set out of reach (a Titan Armor at level
+150) doesn't swallow a knight's build. Wings, pets and jewelry need only a level
+and play no part in it.
 
 Bots evolve like players do. The second-generation class change happens at level
 200 — the same assignment the class-change quest performs — and the master class
@@ -220,12 +249,23 @@ town instead. While the shop dialog visibly occupies it, the bot sells its junk,
 repairs its gear — which is what earns the NPC's discount — and buys potions and,
 where a shop offers them, jewels.
 
-Only Jewels of Bless, Soul and Life are collected, and only up to the configured
-stock: a bot cannot trade or craft, so any other kind would be a backpack slot it
-never gets back. They are spent on its own equipment through the regular consume
-action, with the same success rates and failure penalties a player faces, and
-with the caution a player shows: a Soul is only risked where a failure cannot
-destroy the item's level.
+Only Jewels of Bless, Soul, Life and Chaos are collected, and only up to the
+configured stock — Chaos only by a bot which wears a lucky piece it can still
+mix: a bot does not trade and uses no other crafting, so any other kind would be
+a backpack slot it never gets back. Bless, Soul and Life are spent
+on its own equipment through the regular consume action, with the same success
+rates and failure penalties a player faces, and with the caution a player shows:
+a Soul is only risked where a failure cannot destroy the item's level.
+
+From +9 on, a bot takes its worn weapon, shield and armor pieces to the Chaos
+Goblin — warping to a map where one stands, Noria in Season 6, and paying the
+fare — and mixes them up to +15, one level at a time, as the goblin's +10 to +15
+combinations configure it, with their jewels, price and success rate. Like most
+players, it only puts pieces with luck into the machine, and only when it could
+wear the piece one level up on its base stats and has room in its backpack for
+it. A failure costs it the
+piece, as it costs a player: the bot goes without until it finds another one.
+Wings, pets and jewelry never go in.
 
 A bot which reaches the server's maximum inventory money can no longer sell
 anything — the money simply does not fit. What it cannot sell it keeps, and
@@ -273,7 +313,8 @@ any level, since it is the player who invites, and once it joins it stays for th
 whole session. A living player takes precedence over the bot's own company
 — a bot hunting with other bots leaves them for the inviter, and breaks that bot
 party up if it was leading it, so a player never has to guess which bot happens
-to be free. In a party the bot follows its leader and defers a due reset, leaving
+to be free. In a party the bot follows its leader — in town too, and back from a
+fight once it falls more than twelve tiles behind — and defers a due reset, leaving
 only on the engine's own terms: when the party disbands, when it is kicked,
 when the leader enters a map it may not access, ten minutes after every human
 companion has disconnected without reconnecting, or before the bot's own logout

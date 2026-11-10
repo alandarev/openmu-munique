@@ -85,6 +85,15 @@ namespace MUnique.OpenMU.Web.AdminPanel.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Your account is not permitted to make this change..
+        /// </summary>
+        public static string ChangeNotPermitted {
+            get {
+                return ResourceManager.GetString("ChangeNotPermitted", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Account.
         /// </summary>
         public static string Account {
@@ -346,6 +355,15 @@ namespace MUnique.OpenMU.Web.AdminPanel.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Created before the first user.
+        /// </summary>
+        public static string ApiKeyCreatedBeforeFirstUser {
+            get {
+                return ResourceManager.GetString("ApiKeyCreatedBeforeFirstUser", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to The API key has been deleted..
         /// </summary>
         public static string ApiKeyDeleted {
@@ -382,6 +400,15 @@ namespace MUnique.OpenMU.Web.AdminPanel.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Create the first user of the admin panel before an API key: until then, anybody who reaches the admin panel could create a key, and it would keep working afterwards..
+        /// </summary>
+        public static string ApiKeyNeedsAUser {
+            get {
+                return ResourceManager.GetString("ApiKeyNeedsAUser", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Key.
         /// </summary>
         public static string ApiKeyPrefix {
@@ -396,6 +423,15 @@ namespace MUnique.OpenMU.Web.AdminPanel.Properties {
         public static string ApiKeys {
             get {
                 return ResourceManager.GetString("ApiKeys", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keys marked “Created before the first user” were created while the admin panel had no user, when anybody who reached it could create keys. They have been disabled once. Enable such a key only if you created it yourself, or better replace it: create a new key, put it into the application and delete the old one..
+        /// </summary>
+        public static string ApiKeysCreatedBeforeFirstUserHint {
+            get {
+                return ResourceManager.GetString("ApiKeysCreatedBeforeFirstUserHint", resourceCulture);
             }
         }
 
@@ -423,6 +459,15 @@ namespace MUnique.OpenMU.Web.AdminPanel.Properties {
         public static string ApiKeyShownOnceDescription {
             get {
                 return ResourceManager.GetString("ApiKeyShownOnceDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} API key(s) have been disabled: they were created while the admin panel had no user, when anybody who reached it could create keys. On the API keys page, enable only the keys you created yourself..
+        /// </summary>
+        public static string ApiKeysOfSetupModeDisabled {
+            get {
+                return ResourceManager.GetString("ApiKeysOfSetupModeDisabled", resourceCulture);
             }
         }
 
@@ -5556,6 +5601,15 @@ namespace MUnique.OpenMU.Web.AdminPanel.Properties {
         public static string InitializingGameServerInfo {
             get {
                 return ResourceManager.GetString("InitializingGameServerInfo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Inspect.
+        /// </summary>
+        public static string Inspect {
+            get {
+                return ResourceManager.GetString("Inspect", resourceCulture);
             }
         }
 

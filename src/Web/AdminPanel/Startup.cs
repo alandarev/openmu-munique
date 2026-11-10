@@ -58,9 +58,7 @@ public class Startup
 
         services.AddSignalR().AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new TimeSpanConverter()));
 
-        services.AddControllers(options => options.Filters.Add<MUnique.OpenMU.Web.AdminPanel.API.AdminOperationExceptionFilter>())
-            .ConfigureApplicationPartManager(setup =>
-                setup.FeatureProviders.Add(new GenericControllerFeatureProvider()));
+        services.AddAdminPanelControllers();
 
         services.AddToasts();
         services.AddScoped<ModalService>();
@@ -116,7 +114,7 @@ public class Startup
         app.UseAdminPanelAuth();
 
         // The log files may contain sensitive information, so they are only served to authorized users.
-        app.UseAuthorizedPath("/logs");
+        app.UseAuthorizedPath("/logs", AdminPolicies.Administrator);
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "logs")),

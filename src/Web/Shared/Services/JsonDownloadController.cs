@@ -5,9 +5,13 @@
 namespace MUnique.OpenMU.Web.Shared.Services;
 
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using MUnique.OpenMU.DataModel.Entities;
 using MUnique.OpenMU.Persistence;
 using MUnique.OpenMU.Persistence.Json;
 
@@ -17,6 +21,12 @@ using MUnique.OpenMU.Persistence.Json;
 /// </summary>
 /// <typeparam name="T">The source type of the data object.</typeparam>
 /// <typeparam name="TSerializable">The type of the serializable.</typeparam>
+/// <remarks>
+/// The data is sensitive, e.g. an account contains its password hash. The attribute is required,
+/// because not every host requires an authorization for all of its controllers, e.g. the admin
+/// panel of the distributed deployment also offers endpoints which are called by dapr.
+/// </remarks>
+[Authorize]
 [Route("download/[controller]")]
 [GenericControllerName]
 public class JsonDownloadController<T, TSerializable> : ControllerBase
@@ -55,9 +65,57 @@ public class JsonDownloadController<T, TSerializable> : ControllerBase
             var resultStream = new MemoryStream();
             await convertibleTo.Convert().ToJsonAsync(resultStream, cancellationToken).ConfigureAwait(false);
             resultStream.Position = 0;
+            if (GetExcludedProperties() is { Length: > 0 } excludedProperties)
+            {
+                // The properties are removed from the json and not from the converted object, because the
+                // conversion may return the original object, e.g. with the in-memory persistence.
+                resultStream = await RemovePropertiesAsync(resultStream, excludedProperties, cancellationToken).ConfigureAwait(false);
+            }
+
             return this.File(resultStream, "application/json");
         }
 
         return this.NotFound();
+    }
+
+    /// <summary>
+    /// Gets the properties which are left out of the download.
+    /// </summary>
+    /// <remarks>
+    /// The credentials of an account don't belong into a file which may end up in a bug report or a backup
+    /// folder. The password hash allows to crack the password offline, the other codes are stored in plain text.
+    /// </remarks>
+    private static string[] GetExcludedProperties()
+    {
+        if (typeof(T) == typeof(Account))
+        {
+            return [nameof(Account.PasswordHash), nameof(Account.SecurityCode), nameof(Account.VaultPassword)];
+        }
+
+        return [];
+    }
+
+    private static async ValueTask<MemoryStream> RemovePropertiesAsync(MemoryStream json, IEnumerable<string> propertyNames, CancellationToken cancellationToken)
+    {
+        using (json)
+        {
+            var node = await JsonNode.ParseAsync(json, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (node is JsonObject jsonObject)
+            {
+                foreach (var propertyName in propertyNames)
+                {
+                    jsonObject.Remove(propertyName);
+                }
+            }
+
+            var result = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(result, new JsonWriterOptions { Indented = true }))
+            {
+                node?.WriteTo(writer);
+            }
+
+            result.Position = 0;
+            return result;
+        }
     }
 }

@@ -69,9 +69,7 @@ public static class WebApplicationExtensions
             AdminPanelEnvironment.IsGrafanaAvailable = builder.Configuration.IsOtlpExportConfigured();
         }
 
-        services.AddControllers(options => options.Filters.Add<MUnique.OpenMU.Web.AdminPanel.API.AdminOperationExceptionFilter>())
-            .ConfigureApplicationPartManager(setup =>
-                setup.FeatureProviders.Add(new GenericControllerFeatureProvider()));
+        services.AddAdminPanelControllers();
 
         services.AddToasts();
 
@@ -150,7 +148,7 @@ public static class WebApplicationExtensions
         app.UseAdminPanelAuth();
 
         // The log files may contain sensitive information, so they are only served to authorized users.
-        app.UseAuthorizedPath("/logs");
+        app.UseAuthorizedPath("/logs", AdminPolicies.Administrator);
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "logs")),
@@ -172,5 +170,21 @@ public static class WebApplicationExtensions
         AdminPanelEnvironment.IsHostingEmbedded = true;
 
         return app;
+    }
+
+    /// <summary>
+    /// Adds the controllers of the admin panel, e.g. its API and the downloads, with their conventions.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The builder of the controllers.</returns>
+    internal static IMvcBuilder AddAdminPanelControllers(this IServiceCollection services)
+    {
+        return services.AddControllers(options =>
+            {
+                options.Filters.Add<MUnique.OpenMU.Web.AdminPanel.API.AdminOperationExceptionFilter>();
+                options.Conventions.Add(new MUnique.OpenMU.Web.AdminPanel.API.AccountDownloadAuthorizationConvention());
+            })
+            .ConfigureApplicationPartManager(setup =>
+                setup.FeatureProviders.Add(new GenericControllerFeatureProvider()));
     }
 }
