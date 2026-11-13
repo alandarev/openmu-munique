@@ -1534,6 +1534,9 @@
   <data name="MapDropItemGroupsDescription" xml:space="preserve">
     <value>Drop groups which apply to monsters on the assigned maps. Groups which are not assigned to any map don't drop.</value>
   </data>
+  <data name="NotAssignedToAnyMap" xml:space="preserve">
+    <value>Not assigned to any map</value>
+  </data>
   <data name="MaximumDropLevel" xml:space="preserve">
     <value>Maximum drop level</value>
   </data>
@@ -1689,6 +1692,9 @@
   </data>
   <data name="Active" xml:space="preserve">
     <value>Active</value>
+  </data>
+  <data name="Inactive" xml:space="preserve">
+    <value>Inactive</value>
   </data>
   <data name="Number" xml:space="preserve">
     <value>Number</value>
@@ -2659,6 +2665,13 @@
   <data name="Leaderboards" xml:space="preserve">
     <value>Leaderboards</value>
   </data>
+  <data name="LeaderboardMiniGame_DevilSquare" xml:space="preserve"><value>Devil Square</value></data>
+  <data name="LeaderboardMiniGame_BloodCastle" xml:space="preserve"><value>Blood Castle</value></data>
+  <data name="LeaderboardMiniGame_ChaosCastle" xml:space="preserve"><value>Chaos Castle</value></data>
+  <data name="LeaderboardMiniGame_IllusionTemple" xml:space="preserve"><value>Illusion Temple</value></data>
+  <data name="LeaderboardMiniGame_Doppelganger" xml:space="preserve"><value>Doppelganger</value></data>
+  <data name="LeaderboardMiniGame_Kanturu" xml:space="preserve"><value>Kanturu</value></data>
+  <data name="LeaderboardMiniGame_ImperialGuardian" xml:space="preserve"><value>Imperial Guardian</value></data>
   <data name="LeaderboardsDescription" xml:space="preserve">
     <value>The best characters of the mini games which save their ranking statistics, ranked by the sum of their scores. Bots are not included.</value>
   </data>
@@ -2709,5 +2722,14 @@
   </data>
   <data name="Inspect" xml:space="preserve">
     <value>Inspect</value>
+  </data>
+  <data name="ExcellentOptionsChance" xml:space="preserve">
+    <value>Excellent option chance (%)</value>
+  </data>
+  <data name="ExcellentOptionsMaximumOptionsPerItem" xml:space="preserve">
+    <value>Maximum excellent options per item</value>
+  </data>
+  <data name="ExcellentOptionsHint" xml:space="preserve">
+    <value>Empty means that the value of the excellent option definition of the item applies. The first option is always added without a chance.</value>
   </data>
 </root>
