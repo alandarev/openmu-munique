@@ -1907,6 +1907,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
         }
 
         var prepared = false;
+        var releaseSource = false;
         try
         {
             await this._summon.RemoveAsync().ConfigureAwait(false);
@@ -1931,7 +1932,8 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
             await this._mapTransitions.RespawnWithPreparationAsync(
                 gate,
                 () => prepared = this.TryPrepareForRespawn(source, death, token, changes),
-                () => this.PublishAttributeChangesAsync(changes)).ConfigureAwait(false);
+                () => this.PublishAttributeChangesAsync(changes),
+                () => releaseSource = this.TryCompleteDeathRespawn(source, death)).ConfigureAwait(false);
             if (!prepared)
             {
                 await this.DeferDeathRespawnClaimAsync(source, death).ConfigureAwait(false);
@@ -1955,7 +1957,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
         }
         finally
         {
-            if (prepared)
+            if (releaseSource)
             {
                 source.Dispose();
             }
@@ -2476,6 +2478,7 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
         CancellationTokenSource respawnCancellation;
         CancellationToken respawnToken;
         DeathInformation deathInformation;
+        CancellationTokenSource? previousRespawnCancellation;
         await using (var context = await this.PlayerState.TryBeginAdvanceToAsync(this.PlayerState.CurrentState).ConfigureAwait(false))
         {
             context.Allowed = false;
@@ -2493,11 +2496,14 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
                 deathInformation = currentDeath;
                 respawnCancellation = new CancellationTokenSource();
                 respawnToken = respawnCancellation.Token;
+                previousRespawnCancellation = this._respawnAfterDeathCts;
                 this._respawnAfterDeathCts = respawnCancellation;
                 this._pendingDeathRespawn = null;
             }
         }
 
+        // Replacement transfers disposal from the old timer; it only uses its already captured token.
+        previousRespawnCancellation?.Dispose();
         await this.ForEachWorldObserverAsync<IObjectGotKilledPlugIn>(p => p.ObjectGotKilledAsync(this, killer), true).ConfigureAwait(false);
 
         if (killer is Player killerAfterKilled
@@ -2618,11 +2624,25 @@ public class Player : AsyncDisposable, IBucketMapObserver, IAttackable, IAttacke
                 this._hasReservedLethalHit = false;
                 this._pendingMapChangeDeath = null;
                 this._pendingDeathRespawn = null;
-                this._respawnAfterDeathCts = null;
             }
         }
 
         return true;
+    }
+
+    // Called under placement's state admission, after coordinates commit and before any further await.
+    private bool TryCompleteDeathRespawn(CancellationTokenSource source, DeathInformation death)
+    {
+        lock (this._hitLock)
+        {
+            if (!ReferenceEquals(this._respawnAfterDeathCts, source) || !ReferenceEquals(this.LastDeath, death))
+            {
+                return false;
+            }
+
+            this._respawnAfterDeathCts = null;
+            return true;
+        }
     }
 
     /// <summary>
