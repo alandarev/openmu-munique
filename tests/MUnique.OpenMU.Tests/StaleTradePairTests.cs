@@ -16,12 +16,11 @@ using MUnique.OpenMU.GameLogic.Views.Login;
 using MUnique.OpenMU.GameLogic.Views.Trade;
 
 /// <summary>
-/// A player who logged out of a trade and selected its character again can trade with someone else, while the old
-/// partner still holds its half of the old trade or request. With the complete interaction lifecycle, an ordinary
-/// logout already ends the trade of both players, so these cases assert that no half remains and check the same
-/// outcomes; the guards against a remaining half are exercised by the combat core's version of this fixture. The old half must neither move items or money of the
-/// new trade nor break the new pair; two players which request each other at the same time don't end in a pair which
-/// neither of them was shown.
+/// A player who logged out of a trade and selected its character again can trade with someone else.
+/// With the complete interaction lifecycle, ordinary logout ends both players' trade or request. These cases
+/// verify late old-peer actions after cleanup cannot move items or money of the new trade or break its pair.
+/// The combat core's separate version of this fixture tests surviving-half guards; these are not same-branch
+/// surviving-half coverage. Two players requesting each other must not form a pair neither was shown.
 /// </summary>
 [TestFixture]
 public class StaleTradePairTests

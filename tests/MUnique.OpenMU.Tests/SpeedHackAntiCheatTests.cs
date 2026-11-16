@@ -79,7 +79,10 @@ public class SpeedHackAntiCheatTests
 
         await player.WalkToAsync(targetPoint, steps).ConfigureAwait(false);
 
-        Assert.That(player.GameContext.FeaturePlugIns.GetPlugIn<SpeedHackDetectPlugIn>()!.GetWarningCount(player), Is.EqualTo(1));
+        // A position difference alone is no proof of a faster walk: it is rejected and scored, but the player is not warned.
+        var plugin = player.GameContext.FeaturePlugIns.GetPlugIn<SpeedHackDetectPlugIn>()!;
+        Assert.That(plugin.GetWarningCount(player), Is.EqualTo(0));
+        Assert.That(plugin.GetViolationScore(player), Is.GreaterThan(0));
         var objectMovedPlugIn = player.ViewPlugIns.GetPlugIn<IObjectMovedPlugIn>();
         Assert.That(objectMovedPlugIn, Is.Not.Null);
         Mock.Get<IObjectMovedPlugIn>(objectMovedPlugIn!).Verify(m => m.ObjectMovedAsync(player, MoveType.Instant), Times.Once);
@@ -88,6 +91,170 @@ public class SpeedHackAntiCheatTests
             Assert.That(player.Position, Is.EqualTo(StartPoint));
             Assert.That(player.IsWalking, Is.False);
         });
+    }
+
+    /// <summary>
+    /// Tests that repeated walk start offsets beyond the bound add up to a rejection which warns the player.
+    /// </summary>
+    [Test]
+    public async Task TestRepeatedWalkStartOffsetsBeyondBoundWarnPlayerAsync()
+    {
+        var player = await CreatePlayerWithSpeedAttributesAsync().ConfigureAwait(false);
+        var plugin = player.GameContext.FeaturePlugIns.GetPlugIn<SpeedHackDetectPlugIn>()!;
+        plugin.Configuration!.ViolationScoreRejectThreshold = RejectOnFirstViolationThreshold;
+        player.Position = StartPoint;
+
+        var startPointTooFar = new Point((byte)(StartPoint.X + 10), StartPoint.Y);
+        var targetPoint = new Point((byte)(StartPoint.X + 12), StartPoint.Y);
+        WalkingStep[] steps = [new() { From = startPointTooFar, To = targetPoint, Direction = Direction.East }];
+
+        await player.WalkToAsync(targetPoint, steps).ConfigureAwait(false);
+
+        Assert.That(plugin.GetWarningCount(player), Is.EqualTo(1));
+        Assert.That(player.Position, Is.EqualTo(StartPoint));
+    }
+
+    /// <summary>
+    /// Tests that a client position up to the allowed walk start offset (5 tiles, the default) away from the
+    /// server position is accepted without a rejection and without a score, and that one tile further is rejected.
+    /// </summary>
+    /// <param name="offset">The distance between the reported and the server position.</param>
+    /// <param name="isAccepted">A value indicating whether the reported position is taken over.</param>
+    [TestCase(1, true)]
+    [TestCase(3, true)]
+    [TestCase(5, true)]
+    [TestCase(6, false)]
+    public async Task TestWalkStartWithinAllowedOffsetIsAcceptedAsync(int offset, bool isAccepted)
+    {
+        var player = await CreatePlayerWithSpeedAttributesAsync().ConfigureAwait(false);
+        var plugin = player.GameContext.FeaturePlugIns.GetPlugIn<SpeedHackDetectPlugIn>()!;
+        player.Position = StartPoint;
+
+        var from = new Point((byte)(StartPoint.X + offset), StartPoint.Y);
+        var to = new Point((byte)(from.X + 1), from.Y);
+        WalkingStep[] steps = [new() { From = from, To = to, Direction = Direction.East }];
+
+        await player.WalkToAsync(to, steps).ConfigureAwait(false);
+
+        var objectMovedPlugIn = Mock.Get<IObjectMovedPlugIn>(player.ViewPlugIns.GetPlugIn<IObjectMovedPlugIn>()!);
+        Assert.Multiple(() =>
+        {
+            Assert.That(plugin.GetWarningCount(player), Is.EqualTo(0));
+            Assert.That(plugin.GetViolationScore(player), isAccepted ? Is.EqualTo(0) : Is.GreaterThan(0));
+            Assert.That(player.Position.X, isAccepted ? Is.GreaterThanOrEqualTo(from.X) : Is.EqualTo(StartPoint.X));
+            Assert.That(player.IsWalking, Is.EqualTo(isAccepted));
+        });
+        objectMovedPlugIn.Verify(m => m.ObjectMovedAsync(player, MoveType.Instant), isAccepted ? Times.Never() : Times.Once());
+    }
+
+    /// <summary>
+    /// Tests that the next part of a running walk, which a client sends before it reaches the end of the
+    /// current part, is accepted up to the configured walk start offset, and refused beyond it.
+    /// </summary>
+    /// <param name="offset">The distance between the reported start and the server position.</param>
+    /// <param name="isAccepted">A value indicating whether the reported start is taken over.</param>
+    [TestCase(4, true)]
+    [TestCase(5, true)]
+    [TestCase(6, false)]
+    public async Task TestNextWalkPartAheadOfRunningWalkIsBoundedByWalkStartOffsetAsync(int offset, bool isAccepted)
+    {
+        var player = await CreatePlayerWithSpeedAttributesAsync().ConfigureAwait(false);
+        player.Position = StartPoint;
+
+        Point P(int step) => new((byte)(StartPoint.X + step), StartPoint.Y);
+
+        // Keep the next real step beyond the entire test deadline. This also bounds the elapsed-time
+        // lag allowance below two tiles, so only the unchanged five-tile start bound decides these cases.
+        player.Attributes![Stats.MovementSpeedFactor] = 0.01f;
+        var timeout = TimeSpan.FromSeconds(5);
+        Assert.That(player.StepDelay, Is.GreaterThan(timeout));
+        var replacement = new TaskCompletionSource<(Task Request, Point Position, Point PreviousTarget, Point From, Point To, TimeSpan StepDelay)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recorder = new RecordingWalkStepPlugIn
+        {
+            StepPerformed = (walkingPlayer, step, stepDelay) =>
+            {
+                if (step.From != StartPoint || step.To != P(1))
+                {
+                    return;
+                }
+
+                var position = walkingPlayer.Position;
+                var previousTarget = walkingPlayer.WalkTarget;
+                var from = new Point((byte)(position.X + offset), position.Y);
+                var to = new Point((byte)(from.X + 1), from.Y);
+                WalkingStep[] next = [new() { From = from, To = to, Direction = Direction.East }];
+
+                // The real first step holds the walker writer lock. Queue the ordinary request's
+                // reader without awaiting it here; returning releases the writer, avoiding deadlock.
+                var request = walkingPlayer.WalkToAsync(to, next).AsTask();
+                replacement.TrySetResult((request, position, previousTarget, from, to, stepDelay));
+            },
+        };
+        player.GameContext.PlugInManager.RegisterPlugInAtPlugInPoint<IWalkStepPlugIn>(recorder);
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            WalkingStep[] steps = Enumerable.Range(0, 12).Select(i => new WalkingStep { From = P(i), To = P(i + 1), Direction = Direction.East }).ToArray();
+            await player.WalkToAsync(P(12), steps).AsTask().WaitAsync(timeout).ConfigureAwait(false);
+            var next = await replacement.Task.WaitAsync(timeout).ConfigureAwait(false);
+            await next.Request.WaitAsync(timeout).ConfigureAwait(false);
+            var remainingSteps = new WalkingStep[16];
+            var remainingCount = await player.GetStepsAsync(remainingSteps).AsTask().WaitAsync(timeout).ConfigureAwait(false);
+
+            var objectMovedPlugIn = Mock.Get<IObjectMovedPlugIn>(player.ViewPlugIns.GetPlugIn<IObjectMovedPlugIn>()!);
+            Assert.Multiple(() =>
+            {
+                // A scheduling stall must fail, not turn offset six into a legitimate lag allowance.
+                Assert.That(elapsed.Elapsed, Is.LessThan(timeout));
+                Assert.That(next.StepDelay, Is.GreaterThan(timeout), "The actual first step keeps subsequent steps beyond the deadline.");
+                Assert.That(next.Position, Is.EqualTo(P(1)), "The initial walk performed its real first step.");
+                Assert.That(next.PreviousTarget, Is.EqualTo(P(12)), "The old walk was still running when its replacement arrived.");
+                Assert.That(player.IsWalking, Is.EqualTo(isAccepted));
+                Assert.That(player.Position, Is.EqualTo(isAccepted ? next.From : next.Position));
+                Assert.That(player.WalkTarget, Is.EqualTo(isAccepted ? next.To : default(Point)));
+                Assert.That(remainingCount, Is.EqualTo(isAccepted ? 1 : 0));
+                if (isAccepted)
+                {
+                    Assert.That(remainingSteps[0].From, Is.EqualTo(next.From));
+                    Assert.That(remainingSteps[0].To, Is.EqualTo(next.To));
+                    Assert.That(remainingSteps[0].Direction, Is.EqualTo(Direction.East));
+                }
+            });
+            objectMovedPlugIn.Verify(m => m.ObjectMovedAsync(player, MoveType.Instant), isAccepted ? Times.Never() : Times.Once());
+            Assert.That(elapsed.Elapsed, Is.LessThan(timeout));
+        }
+        finally
+        {
+            await player.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Tests that a refused walk start stops the walk which was running, so the server doesn't carry on
+    /// along the old path, and pulls the client back to the server position.
+    /// </summary>
+    [Test]
+    public async Task TestRefusedWalkStartStopsRunningWalkAsync()
+    {
+        var player = await CreatePlayerWithSpeedAttributesAsync().ConfigureAwait(false);
+        player.Position = StartPoint;
+
+        Point P(int offset) => new((byte)(StartPoint.X + offset), StartPoint.Y);
+        WalkingStep[] steps = Enumerable.Range(0, 8).Select(i => new WalkingStep { From = P(i), To = P(i + 1), Direction = Direction.East }).ToArray();
+        await player.WalkToAsync(P(8), steps).ConfigureAwait(false);
+        Assert.That(player.IsWalking, Is.True);
+
+        WalkingStep[] refused = [new() { From = P(20), To = P(21), Direction = Direction.East }];
+        await player.WalkToAsync(P(21), refused).ConfigureAwait(false);
+
+        var positionAfterRefusal = player.Position;
+        await Task.Delay(700).ConfigureAwait(false);
+        Assert.Multiple(() =>
+        {
+            Assert.That(player.IsWalking, Is.False);
+            Assert.That(player.Position, Is.EqualTo(positionAfterRefusal));
+        });
+        Mock.Get<IObjectMovedPlugIn>(player.ViewPlugIns.GetPlugIn<IObjectMovedPlugIn>()!).Verify(m => m.ObjectMovedAsync(player, MoveType.Instant), Times.Once);
     }
 
     /// <summary>
@@ -1868,12 +2035,16 @@ public class SpeedHackAntiCheatTests
 
         public int TakenOverSteps => System.Threading.Volatile.Read(ref this._takenOverSteps);
 
+        public Action<Player, WalkingStep, TimeSpan>? StepPerformed { get; init; }
+
         public void WalkStepPerformed(Player player, WalkingStep step, TimeSpan stepDelay)
         {
             if (step.Direction == Direction.Undefined)
             {
                 System.Threading.Interlocked.Increment(ref this._takenOverSteps);
             }
+
+            this.StepPerformed?.Invoke(player, step, stepDelay);
         }
     }
 
