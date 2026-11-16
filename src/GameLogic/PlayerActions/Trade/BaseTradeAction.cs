@@ -29,7 +29,7 @@ public class BaseTradeAction
     /// <summary>
     /// Gets the counter for cancelled trades.
     /// </summary>
-    private static Counter<int> CancelledTrades { get; } = TradeMeter.CreateCounter<int>("CancelledTradesCount");
+    protected static Counter<int> CancelledTrades { get; } = TradeMeter.CreateCounter<int>("CancelledTradesCount");
 
     /// <summary>
     /// Cancels the matching trade and starts its notification before publishing the available state.
@@ -52,6 +52,44 @@ public class BaseTradeAction
     /// <returns>Whether this half was cleaned up.</returns>
     protected ValueTask<bool> CancelTradeAsync(ITrader trader, bool checkState = true, ITrader? expectedPartner = null, Action? startResult = null)
         => this.CancelTradeCoreAsync(trader, checkState, expectedPartner, null, startResult);
+
+    /// <summary>Restores this trade half while its caller holds the player's state exclusion.</summary>
+    /// <param name="trader">The trader whose owned backup is restored before reset.</param>
+    protected async ValueTask RestoreTradeAsync(ITrader trader)
+    {
+        trader.TradingMoney = 0;
+        if (trader.BackupInventory != null)
+        {
+            trader.Inventory!.Clear();
+            trader.BackupInventory.RestoreItemStates();
+            foreach (var item in trader.BackupInventory.Items)
+            {
+                try
+                {
+                    if (!await trader.Inventory.AddItemAsync(item.ItemSlot, item).ConfigureAwait(false)
+                        && !await trader.Inventory.AddItemAsync(item).ConfigureAwait(false))
+                    {
+                        trader.Logger.LogError(
+                            "Failed to restore item {item} during trade cancellation for {trader}.",
+                            item,
+                            trader.Name);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    trader.Logger.LogError(
+                        ex,
+                        "Error restoring item {item} during trade cancellation for {trader}.",
+                        item,
+                        trader.Name);
+                }
+            }
+
+            trader.Inventory.ItemStorage.Money = trader.BackupInventory.Money;
+        }
+
+        this.ResetTradeState(trader);
+    }
 
     /// <summary>
     /// Resets the trade.
@@ -102,38 +140,7 @@ public class BaseTradeAction
                 return false;
             }
 
-            trader.TradingMoney = 0;
-            if (trader.BackupInventory != null)
-            {
-                trader.Inventory!.Clear();
-                trader.BackupInventory.RestoreItemStates();
-                foreach (var item in trader.BackupInventory.Items)
-                {
-                    try
-                    {
-                        if (!await trader.Inventory.AddItemAsync(item.ItemSlot, item).ConfigureAwait(false)
-                            && !await trader.Inventory.AddItemAsync(item).ConfigureAwait(false))
-                        {
-                            trader.Logger.LogError(
-                                "Failed to restore item {item} during trade cancellation for {trader}.",
-                                item,
-                                trader.Name);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        trader.Logger.LogError(
-                            ex,
-                            "Error restoring item {item} during trade cancellation for {trader}.",
-                            item,
-                            trader.Name);
-                    }
-                }
-
-                trader.Inventory.ItemStorage.Money = trader.BackupInventory.Money;
-            }
-
-            this.ResetTradeState(trader);
+            await this.RestoreTradeAsync(trader).ConfigureAwait(false);
             startResult?.Invoke();
             if (onNotificationStarted is not null)
             {
