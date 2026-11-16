@@ -14,6 +14,18 @@ using MUnique.OpenMU.Persistence;
 /// </summary>
 public class TradeButtonAction : BaseTradeAction
 {
+    private enum FinishOutcome
+    {
+        /// <summary>The trade ended with the returned result.</summary>
+        Completed,
+
+        /// <summary>The partner left this trade; it wasn't touched.</summary>
+        PartnerLeft,
+
+        /// <summary>The trade isn't confirmed by both traders anymore and stays open.</summary>
+        Unconfirmed,
+    }
+
     /// <summary>
     /// Tries to change the trade button change to the new <paramref name="tradeButtonState"/>.
     /// </summary>
@@ -35,13 +47,26 @@ public class TradeButtonAction : BaseTradeAction
             && tradingPartner is not null
             && tradingPartner.PlayerState.CurrentState == PlayerState.TradeButtonPressed)
         {
-            if (await this.InternalFinishTradeAsync(trader, tradingPartner).ConfigureAwait(false) is not { } result)
+            var (outcome, result) = await this.InternalFinishTradeAsync(trader, tradingPartner).ConfigureAwait(false);
+            if (outcome == FinishOutcome.PartnerLeft)
             {
                 // The partner left this trade (e.g. by a logout) and trades with another player now. Only this
                 // remaining side ends, with its own items; the other trade isn't touched.
                 if (await this.CancelTradeAsync(trader, expectedPartner: tradingPartner).ConfigureAwait(false))
                 {
                     await trader.InvokeViewPlugInAsync<ITradeFinishedPlugIn>(p => p.TradeFinishedAsync(TradeResult.Cancelled)).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
+            if (outcome == FinishOutcome.Unconfirmed)
+            {
+                // Not both confirmed anymore: the trade stays open, as if the confirmation had arrived after the
+                // withdrawal.
+                if (trader.PlayerState.CurrentState == PlayerState.TradeButtonPressed)
+                {
+                    await tradingPartner.InvokeViewPlugInAsync<IChangeTradeButtonStatePlugIn>(p => p.ChangeTradeButtonStateAsync(TradeButtonState.Checked)).ConfigureAwait(false);
                 }
 
                 return;
@@ -75,7 +100,12 @@ public class TradeButtonAction : BaseTradeAction
         return true;
     }
 
-    private async ValueTask<TradeResult?> InternalFinishTradeAsync(ITrader trader, ITrader tradingPartner)
+    private static bool IsInOpenTrade(ITrader trader) => trader.PlayerState.CurrentState == PlayerState.TradeOpened
+        || trader.PlayerState.CurrentState == PlayerState.TradeButtonPressed;
+
+    private static bool IsAvailable(ITrader trader) => trader is not Player player || player.IsAvailableForTrade;
+
+    private async ValueTask<(FinishOutcome Outcome, TradeResult Result)> InternalFinishTradeAsync(ITrader trader, ITrader tradingPartner)
     {
         var traderState = trader.PlayerState;
         var partnerState = tradingPartner.PlayerState;
@@ -97,22 +127,56 @@ public class TradeButtonAction : BaseTradeAction
             {
                 context.Allowed = false;
                 partnerContext.Allowed = false;
-                return null;
+                return (FinishOutcome.PartnerLeft, TradeResult.Cancelled);
             }
 
             var traderAllowed = context.Allowed;
             var partnerAllowed = partnerContext.Allowed;
             context.Allowed = false;
             partnerContext.Allowed = false;
+            if (traderAllowed && partnerAllowed && IsInOpenTrade(trader) && IsInOpenTrade(tradingPartner)
+                && (traderState.CurrentState != PlayerState.TradeButtonPressed
+                    || partnerState.CurrentState != PlayerState.TradeButtonPressed))
+            {
+                // A confirmation was withdrawn after the unlocked check. Nothing is exchanged; the trade stays as it is.
+                return (FinishOutcome.Unconfirmed, TradeResult.Cancelled);
+            }
+
+            // A trader whose death or forced placement is already reserved at this point doesn't exchange; the trade is
+            // rolled back. A death reserved later is applied after this finish, which owns both state exclusions.
+            var traderAvailable = IsAvailable(trader);
+            var partnerAvailable = IsAvailable(tradingPartner);
             if (!traderAllowed || !partnerAllowed
                 || traderState.CurrentState != PlayerState.TradeButtonPressed
-                || partnerState.CurrentState != PlayerState.TradeButtonPressed)
+                || partnerState.CurrentState != PlayerState.TradeButtonPressed
+                || !traderAvailable
+                || !partnerAvailable)
             {
+                trader.Logger.LogDebug(
+                    "Unexpected player states. {Trader}:{TraderState} (allowed: {TraderAllowed}, available: {TraderAvailable}), {Partner}:{PartnerState} (allowed: {PartnerAllowed}, available: {PartnerAvailable})",
+                    trader.Name,
+                    traderState.CurrentState,
+                    traderAllowed,
+                    traderAvailable,
+                    tradingPartner.Name,
+                    partnerState.CurrentState,
+                    partnerAllowed,
+                    partnerAvailable);
                 result = TradeResult.Cancelled;
             }
             else
             {
-                result = await this.TransferTradeAsync(trader, tradingPartner, context, partnerContext).ConfigureAwait(false);
+                try
+                {
+                    result = await this.TransferTradeAsync(trader, tradingPartner, context, partnerContext).ConfigureAwait(false);
+                }
+                catch (Exception error)
+                {
+                    // Nothing was committed (a committed transfer always returns its success), but a part of the
+                    // exchange may already be applied. Roll both halves back below, then rethrow.
+                    firstError = error;
+                    result = TradeResult.Cancelled;
+                }
             }
 
             if (result != TradeResult.Success)
@@ -152,7 +216,7 @@ public class TradeButtonAction : BaseTradeAction
             (trader as Player)?.Logger.LogDebug($"Cancelled the trade because of unfinished state. trader: {trader.Name}, partner:{tradingPartner.Name}");
         }
 
-        return result;
+        return (FinishOutcome.Completed, result);
 
         async ValueTask<bool> RollbackAsync(ITrader participant, ITrader expectedPartner, StateMachine.StateChangeContext stateContext, bool allowed, Action startResult)
         {
