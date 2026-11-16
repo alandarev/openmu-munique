@@ -265,6 +265,172 @@ public class StaleTradePairTests
         }
     }
 
+    /// <summary>
+    /// Full lifecycle admission refuses the late invitation during logout; later old-peer actions leave a successor pair intact.
+    /// Unlike the combat core's same-named cases, these cases cannot create a surviving stale half through logout.
+    /// </summary>
+    /// <param name="attemptAcceptance">Whether to attempt accepting the refused invitation before logout completes.</param>
+    /// <param name="trigger">Lifecycle cleanup, explicit old-peer cancel, or no-cleanup control after the refusal.</param>
+    [TestCase(false, "death")]
+    [TestCase(false, "logout")]
+    [TestCase(false, "placement")]
+    [TestCase(false, "cancel")]
+    [TestCase(false, "none")]
+    [TestCase(true, "death")]
+    [TestCase(true, "logout")]
+    [TestCase(true, "placement")]
+    [TestCase(true, "cancel")]
+    [TestCase(true, "none")]
+    public async Task StaleLifecycleEntryPreservesSuccessorTradeAsync(bool attemptAcceptance, string trigger)
+    {
+        var owner = await PlayerTestHelper.CreatePlayerAsync().ConfigureAwait(false);
+        Player? stale = null;
+        Player? successor = null;
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var logout = Task.CompletedTask;
+        var opening = Task.CompletedTask;
+        try
+        {
+            stale = await PlayerTestHelper.CreatePlayerAsync(owner.GameContext).ConfigureAwait(false);
+            successor = await PlayerTestHelper.CreatePlayerAsync(owner.GameContext).ConfigureAwait(false);
+            var (a, b, c) = (stale, owner, successor);
+            var staleCharacter = a.SelectedCharacter!;
+            var character = PrepareOwner(b);
+            var removalEntered = HoldAtMapRemoval(b, release);
+            b.Money = 200;
+            a.Money = 100;
+            c.Money = 300;
+            var x = await AddItemAsync(a).ConfigureAwait(false);
+            var y = await AddItemAsync(b).ConfigureAwait(false);
+            var z = await AddItemAsync(c).ConfigureAwait(false);
+            logout = RunAsync(b, () => new LogoutAction().LogoutAsync(b, LogoutType.BackToCharacterSelection));
+            Assert.That(await Task.WhenAny(removalEntered, logout).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false), Is.SameAs(removalEntered));
+            Assert.That(await RunAsync(a, () => new TradeRequestAction().RequestTradeAsync(a, b)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false), Is.False, "Scoped logout removal refuses the late invitation before either half is published.");
+            if (attemptAcceptance)
+            {
+                opening = RunAsync(a, () => new TradeAcceptAction().HandleTradeAcceptAsync(a, true));
+                await opening.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(logout.IsCompleted, Is.False, "The actual removal barrier still holds the logout.");
+                Assert.That(a.IsAlive, Is.True);
+                Assert.That(b.IsAlive, Is.True, "The refusal is removal admission, not a dead-peer guard.");
+                Assert.That(a.PlayerState.CurrentState, Is.EqualTo(PlayerState.EnteredWorld));
+                Assert.That(b.PlayerState.CurrentState, Is.EqualTo(PlayerState.EnteredWorld));
+                Assert.That(a.TradingPartner, Is.Null);
+                Assert.That(b.TradingPartner, Is.Null);
+                Assert.That(a.BackupInventory, Is.Null);
+                Assert.That(b.BackupInventory, Is.Null);
+                Assert.That(a.Inventory!.Items, Does.Contain(x));
+                Assert.That(b.Inventory!.Items, Does.Contain(y));
+                Assert.That(a.Money, Is.EqualTo(100));
+                Assert.That(b.Money, Is.EqualTo(200));
+                Mock.Get(a.ViewPlugIns.GetPlugIn<IShowTradeRequestAnswerPlugIn>()!).Verify(v => v.ShowTradeRequestAnswerAsync(true), Times.Never);
+                Mock.Get(b.ViewPlugIns.GetPlugIn<IShowTradeRequestPlugIn>()!).Verify(v => v.ShowTradeRequestAsync(a), Times.Never);
+                Mock.Get(a.ViewPlugIns.GetPlugIn<ITradeFinishedPlugIn>()!).Verify(v => v.TradeFinishedAsync(TradeResult.Cancelled), Times.Never);
+                Mock.Get(b.ViewPlugIns.GetPlugIn<ITradeFinishedPlugIn>()!).Verify(v => v.TradeFinishedAsync(TradeResult.Cancelled), Times.Never);
+            });
+
+            release.TrySetResult();
+            await logout.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await opening.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            await ReselectAsync(b, character).ConfigureAwait(false);
+            Assert.That(a.PlayerState.CurrentState, Is.EqualTo(PlayerState.EnteredWorld));
+            Assert.That(a.TradingPartner, Is.Null, "The refused invitation never left an obsolete half to reopen.");
+            Assert.That(await RunAsync(b, () => new TradeRequestAction().RequestTradeAsync(b, c)).ConfigureAwait(false), Is.True);
+            await RunAsync(c, () => new TradeAcceptAction().HandleTradeAcceptAsync(c, true)).ConfigureAwait(false);
+            await RunAsync(b, async () =>
+            {
+                await new MoveItemAction().MoveItemAsync(b, 20, Storages.Inventory, 0, Storages.Trade).ConfigureAwait(false);
+                await new TradeMoneyAction().TradeMoneyAsync(b, 60).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+            await RunAsync(c, async () =>
+            {
+                await new MoveItemAction().MoveItemAsync(c, 20, Storages.Inventory, 0, Storages.Trade).ConfigureAwait(false);
+                await new TradeMoneyAction().TradeMoneyAsync(c, 25).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+            var bBackup = b.BackupInventory;
+            var cBackup = c.BackupInventory;
+            var bFinished = Mock.Get(b.ViewPlugIns.GetPlugIn<ITradeFinishedPlugIn>()!);
+            var cFinished = Mock.Get(c.ViewPlugIns.GetPlugIn<ITradeFinishedPlugIn>()!);
+            bFinished.Invocations.Clear();
+            cFinished.Invocations.Clear();
+            Assert.Multiple(() =>
+            {
+                Assert.That(b.TradingPartner, Is.SameAs(c));
+                Assert.That(c.TradingPartner, Is.SameAs(b));
+                Assert.That(b.TemporaryStorage!.Items, Does.Contain(y));
+                Assert.That(c.TemporaryStorage!.Items, Does.Contain(z));
+            });
+            if (trigger == "death")
+            {
+                await a.KillInstantlyAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            else if (trigger == "logout")
+            {
+                await RunAsync(a, () => new LogoutAction().LogoutAsync(a, LogoutType.BackToCharacterSelection)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            else if (trigger == "placement")
+            {
+                await RunAsync(a, () => a.RespawnAtAsync(new MUnique.OpenMU.DataModel.Configuration.ExitGate { Map = a.CurrentMap!.Definition, X1 = 1, X2 = 1, Y1 = 1, Y2 = 1 })).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            else if (trigger == "cancel")
+            {
+                await RunAsync(a, () => new TradeCancelAction().CancelTradeAsync(a)).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            else
+            {
+                // Control: keep the refused old peer inert while the successor pair completes normally.
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(b.PlayerState.CurrentState, Is.EqualTo(PlayerState.TradeOpened), "An old peer whose invitation was refused must not disturb the successor pair.");
+                Mock.Get(a.ViewPlugIns.GetPlugIn<ITradeFinishedPlugIn>()!).Verify(v => v.TradeFinishedAsync(TradeResult.Cancelled), Times.Never);
+                Assert.That(c.PlayerState.CurrentState, Is.EqualTo(PlayerState.TradeOpened));
+                Assert.That(b.TradingPartner, Is.SameAs(c));
+                Assert.That(c.TradingPartner, Is.SameAs(b));
+                Assert.That(b.BackupInventory, Is.SameAs(bBackup));
+                Assert.That(c.BackupInventory, Is.SameAs(cBackup));
+                Assert.That(b.TradingMoney, Is.EqualTo(60));
+                Assert.That(c.TradingMoney, Is.EqualTo(25));
+                Assert.That(b.TemporaryStorage!.Items, Does.Contain(y));
+                Assert.That(c.TemporaryStorage!.Items, Does.Contain(z));
+                Assert.That(Count(new[] { a, b, c }, x), Is.EqualTo(1));
+                Assert.That(Count(new[] { a, b, c }, y), Is.EqualTo(1));
+                Assert.That(Count(new[] { a, b, c }, z), Is.EqualTo(1));
+                bFinished.Verify(v => v.TradeFinishedAsync(TradeResult.Cancelled), Times.Never);
+                cFinished.Verify(v => v.TradeFinishedAsync(TradeResult.Cancelled), Times.Never);
+            });
+            await RunAsync(b, () => new TradeButtonAction().TradeButtonChangedAsync(b, TradeButtonState.Checked)).ConfigureAwait(false);
+            await RunAsync(c, () => new TradeButtonAction().TradeButtonChangedAsync(c, TradeButtonState.Checked)).ConfigureAwait(false);
+            Assert.Multiple(() =>
+            {
+                Assert.That(b.Inventory!.Items, Does.Contain(z));
+                Assert.That(c.Inventory!.Items, Does.Contain(y));
+                Assert.That(b.Money, Is.EqualTo(165));
+                Assert.That(c.Money, Is.EqualTo(335));
+                Assert.That(staleCharacter.Inventory!.Money, Is.EqualTo(100));
+                bFinished.Verify(v => v.TradeFinishedAsync(TradeResult.Success), Times.Once);
+                cFinished.Verify(v => v.TradeFinishedAsync(TradeResult.Success), Times.Once);
+            });
+        }
+        finally
+        {
+            release.TrySetResult();
+            await WhenEndedAsync(logout).ConfigureAwait(false);
+            await WhenEndedAsync(opening).ConfigureAwait(false);
+            if (stale is not null && successor is not null)
+            {
+                await EndTradesAsync(successor, stale, owner).ConfigureAwait(false);
+            }
+
+            await DisposeAllAsync(owner, stale, successor).ConfigureAwait(false);
+        }
+    }
+
     private static bool IsFree(Player player)
         => player.PlayerState.CurrentState == PlayerState.EnteredWorld && player.TradingPartner is null;
 
@@ -276,6 +442,36 @@ public class StaleTradePairTests
         Mock.Get(owner.Account!).Setup(a => a.Characters).Returns(new List<Character> { character });
         return character;
     }
+
+    /// <summary>
+    /// Holds the removal of the owner from its map, which a logout does after it closed the trades of the owner and
+    /// before it restores the inventory; the owner is still selected and alive there.
+    /// </summary>
+    private static Task HoldAtMapRemoval(Player owner, TaskCompletionSource release)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        owner.CurrentMap!.ObjectRemoved += async removal =>
+        {
+            if (ReferenceEquals(removal.Object, owner))
+            {
+                entered.TrySetResult();
+                await release.Task.ConfigureAwait(false);
+            }
+        };
+
+        return entered.Task;
+    }
+
+    private static async Task ReselectAsync(Player owner, Character character)
+    {
+        await RunAsync(owner, () => new RequestCharacterListAction().RequestCharacterListAsync(owner)).ConfigureAwait(false);
+        await RunAsync(owner, () => new SelectCharacterAction().SelectCharacterAsync(owner, character.Name)).ConfigureAwait(false);
+        Assert.That(owner.PlayerState.CurrentState, Is.EqualTo(PlayerState.EnteredWorld));
+    }
+
+    /// <summary>Waits bounded for the given actions, whatever their outcome, so that cleanup doesn't overlap them.</summary>
+    private static Task WhenEndedAsync(params Task[] tasks)
+        => Task.WhenAll(tasks.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default))).WaitAsync(TimeSpan.FromSeconds(5));
 
     private static async Task LogoutAndReselectAsync(Player owner, Character character)
     {
