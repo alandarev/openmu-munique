@@ -37,8 +37,10 @@ public class BaseTradeAction
     /// <param name="trader">The trader.</param>
     /// <param name="expectedPartner">The partner whose trade may be cancelled.</param>
     /// <param name="onNotificationStarted">Captures the notification for observation after both cancellation scopes end; must not block.</param>
-    internal ValueTask CancelTradeAndStartNotificationAsync(ITrader trader, ITrader? expectedPartner, Action<ValueTask> onNotificationStarted)
-        => this.CancelTradeCoreAsync(trader, true, expectedPartner, onNotificationStarted);
+    internal async ValueTask CancelTradeAndStartNotificationAsync(ITrader trader, ITrader? expectedPartner, Action<ValueTask> onNotificationStarted)
+    {
+        await this.CancelTradeCoreAsync(trader, true, expectedPartner, onNotificationStarted, null).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Cancels the trade.
@@ -46,8 +48,10 @@ public class BaseTradeAction
     /// <param name="trader">The trader.</param>
     /// <param name="checkState">If set to <c>true</c>, the player state is checked. Otherwise, it's ignored.</param>
     /// <param name="expectedPartner">The partner whose trade may be cancelled, or <c>null</c> to omit the identity check.</param>
-    protected ValueTask CancelTradeAsync(ITrader trader, bool checkState = true, ITrader? expectedPartner = null)
-        => this.CancelTradeCoreAsync(trader, checkState, expectedPartner, null);
+    /// <param name="startResult">Optional owned result start after reset and before this half publishes its available state. Completions must be observed outside the scope.</param>
+    /// <returns>Whether this half was cleaned up.</returns>
+    protected ValueTask<bool> CancelTradeAsync(ITrader trader, bool checkState = true, ITrader? expectedPartner = null, Action? startResult = null)
+        => this.CancelTradeCoreAsync(trader, checkState, expectedPartner, null, startResult);
 
     /// <summary>
     /// Resets the trade.
@@ -84,7 +88,7 @@ public class BaseTradeAction
         }
     }
 
-    private async ValueTask CancelTradeCoreAsync(ITrader trader, bool checkState, ITrader? expectedPartner, Action<ValueTask>? onNotificationStarted)
+    private async ValueTask<bool> CancelTradeCoreAsync(ITrader trader, bool checkState, ITrader? expectedPartner, Action<ValueTask>? onNotificationStarted, Action? startResult)
     {
         await using (var context = await trader.PlayerState.TryBeginAdvanceToAsync(PlayerState.EnteredWorld).ConfigureAwait(false))
         {
@@ -95,7 +99,7 @@ public class BaseTradeAction
                 || (expectedPartner is not null && !ReferenceEquals(trader.TradingPartner, expectedPartner)))
             {
                 context.Allowed = false;
-                return;
+                return false;
             }
 
             trader.TradingMoney = 0;
@@ -130,6 +134,7 @@ public class BaseTradeAction
             }
 
             this.ResetTradeState(trader);
+            startResult?.Invoke();
             if (onNotificationStarted is not null)
             {
                 // The concrete remote view queues its result first, before a replacement can publish its window.
@@ -139,5 +144,6 @@ public class BaseTradeAction
         }
 
         CancelledTrades.Add(1);
+        return true;
     }
 }
