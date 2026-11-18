@@ -267,10 +267,10 @@
     <value>Diese Aktualisierung fügt Daten für die Duellkonfiguration hinzu</value>
   </data>
   <data name="FixBloodCastleMonsterAttributesUpdatePlugIn_Name" xml:space="preserve">
-    <value>Korrektur der Monsterattribute von Blutburg 7/8</value>
+    <value>Season-6-Monsterattribute der Blutburg</value>
   </data>
   <data name="FixBloodCastleMonsterAttributesUpdatePlugIn_Description" xml:space="preserve">
-    <value>Tauscht die Attributwerte zwischen BC7 (Monster 138-143) und BC8 (Monster 428-433), damit die Progression stimmt: BC6 → BC7 → BC8.</value>
+    <value>Setzt Level, Leben, Schaden, Verteidigung, Angriffs- und Verteidigungsrate, Reichweiten und Verzögerungen der Monster von Blutburg 1 bis 8 auf die Season-6-Daten, damit die Schwierigkeit von Stufe zu Stufe steigt. Angepasste Werte dieser Attribute werden überschrieben.</value>
   </data>
   <data name="AddDoppelgangerDataUpdatePlugIn_Name" xml:space="preserve">
     <value>Doppelgänger-Daten hinzufügen</value>
@@ -911,6 +911,8 @@
     <value>Diese Aktualisierung fügt den Talisman des Glücks hinzu, der die Erfolgsrate einer Kombination um seine Haltbarkeit in Prozent erhöht, und den Talisman der Chaos-Kombination, der den Gegenstand einer fehlgeschlagenen Verbesserung auf +10 bis +15 erhält. Sie werden den Kombinationen hinzugefügt, die sie annehmen, und die Pakete des Item-Shops, die sie enthalten, werden zum Verkauf angeboten.</value>
   </data>
   <data name="FixMurenRingOfFireBonusPlugIn_Name" xml:space="preserve">
+  <data name="RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Name" xml:space="preserve"><value>Warps außerhalb des ursprünglichen Warp-Fensters einschränken</value></data>
+  <data name="RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Description" xml:space="preserve"><value>Macht die Warps, die der ursprüngliche Client nicht in seinem Warp-Fenster anbietet (Crywolf, Loren Market und der zweite LaCleon-Warp), nur für Game Master verfügbar.</value></data>
     <value>Bonus des Muren-Feuerrings korrigieren</value>
   </data>
   <data name="FixMurenRingOfFireBonusPlugIn_Description" xml:space="preserve">
@@ -934,6 +936,12 @@
   <data name="AddHitShockSettingsPlugIn_Description" xml:space="preserve">
     <value>Fügt die globalen Einstellungen für Treffer-Schock-Chance und Schadensschwelle sowie die Uniria-Kennzeichnung hinzu, damit Spieler mit ausgerüsteter Uniria keinen Treffer-Schock erleiden.</value>
   </data>
+  <data name="AddSealItemDropRateUpdatePlugIn_Name" xml:space="preserve">
+    <value>Item-Droprate der Siegel hinzufügen</value>
+  </data>
+  <data name="AddSealItemDropRateUpdatePlugIn_Description" xml:space="preserve">
+    <value>Dieses Update fügt dem Siegel des Wohlstands, dem Siegel der Göttlichkeit und dem Meistersiegel des Wohlstands die Item-Droprate von 150 % hinzu, und fügt das zweite Siegel des Wohlstands (13/116) hinzu, das nur die Item-Droprate erhöht.</value>
+  </data>
   <data name="AdjustIceArrowFreezeDurationUpdatePlugIn_Name" xml:space="preserve">
     <value>Einfrierdauer des Eis-Pfeils anpassen</value>
   </data>
@@ -941,21 +949,57 @@
     <value>Verlängert die standardmäßige Einfrierdauer des Eis-Pfeils und ergänzt ihre Verkürzung bei erfolgreichen Treffern. Angepasste Dauern bleiben unverändert. Außerdem werden die Magieeffekte von Ice Arrow Str, Chain Drive Str, Strike of Destruction Str und Poison Str an die Magieeffekte ihrer Basisfähigkeiten angeglichen.</value>
   </data>
   <data name="FieldMonsterSpawnsUpdatePlugInSeason6_Name" xml:space="preserve">
-    <value>Season-6-Monster-Spawns von Devias, Noria und Elfenland</value>
+    <value>Season-6-Monster-Spawns der Feldkarten</value>
   </data>
   <data name="FieldMonsterSpawnsUpdatePlugInSeason6_Description" xml:space="preserve">
-    <value>Ersetzt die Monster-Spawns von Devias, Noria und Elfenland, die über Viertel der Karte verteilt sind, durch die Season-6-Aufteilung mit kleineren Bereichen und einzelnen Punkten. Fügt die Spinnen in Noria und Elfenland hinzu. Angepasste Spawns der Feldmonster dieser Karten werden überschrieben. Entfernt außerdem die doppelten Monster-Spawns von Dungeon (254) und Lost Tower (2).</value>
+    <value>Bringt die Monster-Spawns der Feldkarten auf die Season-6-Daten: Devias, Noria und Elfenland erhalten die Aufteilung mit kleineren Bereichen und einzelnen Punkten statt Vierteln der Karte, mit den Spinnen in Noria und Elfenland. Fehlende Spawns von Verlies, Verlorener Turm, Ikarus, Kalima 3, 6 und 7, Land der Prüfungen, Aida, Crywolf-Festung, Kanturu III und Balgass-Kaserne werden hinzugefügt und überzählige entfernt, Spawns mit falschen Koordinaten in Crywolf-Festung, Balgass-Kaserne, Sumpf des Friedens, Vulkanus und Karutan korrigiert. Entfernt außerdem die doppelten Monster-Spawns von Verlies (254) und Verlorener Turm (2). Angepasste Spawns der Feldmonster von Devias, Noria und Elfenland werden überschrieben.</value>
   </data>
   <data name="FieldMonsterSpawnsUpdatePlugInBase_Name" xml:space="preserve">
-    <value>Doppelte Monster-Spawns von Dungeon und Lost Tower entfernen</value>
+    <value>Season-6-Monster-Spawns der Feldkarten</value>
   </data>
   <data name="FieldMonsterSpawnsUpdatePlugInBase_Description" xml:space="preserve">
-    <value>Entfernt die doppelt definierten Monster-Spawns: 254 im Dungeon, der deshalb doppelt so viele Monster wie vorgesehen hatte, und 2 im Lost Tower. Andere Spawns bleiben erhalten.</value>
+    <value>Bringt die Monster-Spawns der Feldkarten auf die Season-6-Daten, die auch diese Version verwendet: Devias und Noria erhalten die Aufteilung mit kleineren Bereichen und einzelnen Punkten statt Vierteln der Karte, ohne die Spinnen von Season 6. Fehlende Spawns von Verlies, Verlorener Turm und Ikarus werden hinzugefügt und überzählige entfernt. Entfernt außerdem die doppelten Monster-Spawns von Verlies (254) und Verlorener Turm (2). Angepasste Spawns der Feldmonster von Devias und Noria werden überschrieben.</value>
+  </data>
+  <data name="MonsterStatsUpdatePlugInBase_Name" xml:space="preserve">
+    <value>Season-6-Monsterwerte</value>
+  </data>
+  <data name="MonsterStatsUpdatePlugInBase_Description" xml:space="preserve">
+    <value>Setzt Level, Leben, Schaden, Verteidigung, Angriffs- und Verteidigungsrate, Reichweiten, Verzögerungen und Respawn-Zeiten der Monster auf die Season-6-Daten, die auch diese Version verwendet. Korrigiert Feldmonster, Invasionsmonster und Wachen sowie in Season 6 Chaos Castle 4 und 7 sowie Devil Square 7. Angepasste Werte dieser Attribute werden überschrieben. Benennt in Season 6 das Monster 275 von Kalima 7 von „Illusion of Kundun 7“ in „Kundun“ um.</value>
   </data>
   <data name="AddProtectionTalismansUpdatePlugIn_Name" xml:space="preserve">
     <value>Schutztalismane hinzufügen</value>
   </data>
   <data name="AddProtectionTalismansUpdatePlugIn_Description" xml:space="preserve">
     <value>Dieses Update fügt den Talisman des Wächters, der vor der Todesstrafe schützt, und den Talisman des Gegenstandsschutzes hinzu, der die Haltbarkeit der ausgerüsteten Gegenstände erhält.</value>
+  </data>
+  <data name="FixCrywolfGateTerrainUpdatePlugIn_Name" xml:space="preserve">
+    <value>Eingang nach Crywolf im Tal von Loren korrigieren</value>
+  </data>
+  <data name="FixCrywolfGateTerrainUpdatePlugIn_Description" xml:space="preserve">
+    <value>Macht den südlichen Zugang zum Tor der Festung Crywolf im Tal von Loren begehbar, den Spieler außerhalb der Burgbelagerung benutzen. Der nördliche Zugang und alle anderen Felder bleiben unverändert.</value>
+  </data>
+  <data name="AddTalismanOfResurrectionUpdatePlugIn_Name" xml:space="preserve">
+    <value>Talisman der Wiederbelebung hinzufügen</value>
+  </data>
+  <data name="AddTalismanOfResurrectionUpdatePlugIn_Description" xml:space="preserve">
+    <value>Dieses Update fügt den Talisman der Wiederbelebung hinzu, der einen toten Spieler am Ort seines Todes wieder erscheinen lässt. Die Pakete des In-Game-Shops, die ihn enthalten, werden zum Verkauf angeboten.</value>
+  </data>
+  <data name="AddLuckyCoinUpdatePlugIn_Name" xml:space="preserve">
+    <value>Glücksmünze hinzufügen</value>
+  </data>
+  <data name="AddLuckyCoinUpdatePlugIn_Description" xml:space="preserve">
+    <value>Dieses Update fügt die Glücksmünze hinzu, die beim NPC Delgado in Devias registriert oder gegen Gegenstände getauscht wird, und öffnet seinen Glücksmünzen-Dialog.</value>
+  </data>
+  <data name="AddGladiatorsHonorUpdatePlugIn_Name" xml:space="preserve">
+    <value>Ehre des Gladiators hinzufügen</value>
+  </data>
+  <data name="AddGladiatorsHonorUpdatePlugIn_Description" xml:space="preserve">
+    <value>Dieses Update fügt die Ehre des Gladiators hinzu, welche die Erfahrung in Vulcanus 30 Minuten lang um 20 % erhöht.</value>
+  </data>
+  <data name="NpcSpawnsUpdatePlugInSeason6_Name" xml:space="preserve">
+    <value>Season-6-NPC-Spawns</value>
+  </data>
+  <data name="NpcSpawnsUpdatePlugInSeason6_Description" xml:space="preserve">
+    <value>Bringt die NPCs auf ihre Season-6-Positionen und Blickrichtungen (Lorencia, Devias, Noria, Arena, Atlans, Elfenland, Aida, Crywolf-Festung, Tal von Loren, Karutan, Kanturu und Illusionstempel), ergänzt den fehlenden Elfensoldaten von Devias, die zwei fehlenden Elfensoldaten von Noria sowie den Goldenen Bogenschützen von Devias und entfernt die NPCs, die es in Season 6 nicht gibt: aus den älteren Versionen die Trankverkäuferinnen von Noria und Verlorener Turm, die Sicherheitswächter von Verlorener Turm, Arena und Atlans, die Wache bei 114/125 und den Goldenen Bogenschützen von Lorencia; Lugard, Priester Devin und Mirage in Devias, die Season 6 nur in Elfenland und in der Crywolf-Festung hat; sowie die zweite Krone im Tal von Loren. Angepasste Positionen und Blickrichtungen dieser NPCs werden überschrieben.</value>
   </data>
 </root>

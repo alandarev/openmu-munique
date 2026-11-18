@@ -87,6 +87,7 @@ complexity and effort). Complexity 0 means we wont implement it.
 | *RequestGuildMarkCastleOwner* | 0xB902            | 100%     | 1          | Entering the hunting zone (0xB905) is implemented |
 | *JewelMix*                    | 0xBC              | 100%     | 4          |                                               |
 | *CrywolfGroup*              | 0xBD              | 100%     | 10         |                                               |
+| *LuckyCoin* | 0xBF0B-0xBF0D | 100% | 3 | Registration and exchange at Delgado |
 | *IllusionTempleGroup*       | 0xBF              | 100%     | 10         | Team-based PvP mini game: relic pickup/delivery, scoring, skill points, special skills, rewards |
 | FriendListRequest           | 0xC0              | 0%       | 0          | Not needed, friend list is sent automatically |
 | *FriendAdd*                   | 0xC1              | 100%     | 2          |                                               |
@@ -109,7 +110,7 @@ complexity and effort). Complexity 0 means we wont implement it.
 | *RequestAllyList*           | 0xE9              | 100%     | 3          |                                               |
 | *RequestAllyKickGuild*      | 0xEB              | 100%     | 3          |                                               |
 | *LoginLogoutGroup*            | 0xF1              | 100%     | 10         |                                               |
-| *CharacterGroup*              | 0xF3              | 100%     | 10         |                                               |
+| *CharacterGroup*              | 0xF3              | 100%     | 11         |                                               |
 |   - *Character list* | 0xF300            |      |          |                                               |
 |   - *Character creation* | 0xF301            |      |          |                                               |
 |   - *Character delete request* | 0xF302            |      |          |                                               |
@@ -127,3 +128,21 @@ complexity and effort). Complexity 0 means we wont implement it.
 | *Teleport*                    | 0x15 | 100%     | 2          |                                               |
 | *Walk*                        | 0xD4     | 100%     | 10         |                                               |
 
+
+The character group also handles `InventoryRequest` (C3 F3 10) in the world and
+NPC-dialog states, returning an authoritative inventory snapshot.
+
+Ordinary item operations continue to push their existing inventory deltas. The
+explicit snapshot request supports resynchronization after an ambiguous reply
+and completion of NPC operations which may send no item delta: for example,
+repairing an item already at full durability returns without a durability update.
+Requests are throttled per player (250 ms by default, configurable on the handler).
+The connection's `PacketPipeReaderBase` awaits `Connection.ReadPacketAsync`,
+which awaits its packet subscribers. `RemotePlayer.PacketReceivedAsync` in turn
+awaits the complete handler through `RunPersistenceExclusiveAsync`. Thus, an item
+operation sent before the refresh on the same connection completes first. The
+refresh lock only serializes snapshots; it does not order background game actions.
+Waiting requests share a fresh snapshot; a request received after serialization
+starts waits for the next snapshot so an earlier response cannot acknowledge a
+later item action. Delayed refreshes are suppressed after returning to character
+selection.

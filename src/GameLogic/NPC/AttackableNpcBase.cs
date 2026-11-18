@@ -78,7 +78,10 @@ public abstract class AttackableNpcBase : NonPlayerCharacter, IAttackable
     /// <inheritdoc/>
     public override Point Position
     {
-        get => base.Position;
+        get
+        {
+            return base.Position;
+        }
         set
         {
             if (base.Position != value)
@@ -192,15 +195,15 @@ public abstract class AttackableNpcBase : NonPlayerCharacter, IAttackable
     }
 
     /// <inheritdoc/>
-    protected override void Dispose(bool managed)
+    protected override void Dispose(bool disposing)
     {
-        if (managed)
+        if (disposing)
         {
             this.Died = null;
             this.IsAlive = false;
         }
 
-        base.Dispose(managed);
+        base.Dispose(disposing);
     }
 
     /// <summary>
@@ -246,6 +249,7 @@ public abstract class AttackableNpcBase : NonPlayerCharacter, IAttackable
 
             await player.InvokeViewPlugInAsync<IShowHitPlugIn>(p => p.ShowHitAsync(this, hitInfo)).ConfigureAwait(false);
             player.GameContext.PlugInManager.GetPlugInPoint<IAttackableGotHitPlugIn>()?.AttackableGotHit(this, attacker, hitInfo);
+            player.GameContext.PlugInManager.GetPlugInPoint<IAttackableGotHitWithSkillPlugIn>()?.AttackableGotHit(this, attacker, hitInfo, skill);
         }
 
         if (killed)
